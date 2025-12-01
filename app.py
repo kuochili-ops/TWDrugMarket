@@ -48,16 +48,22 @@ def format_number(n):
     except:
         return n
 
+
 def calc_annual_payment(price_df, use_df, code, year):
     price = get_longest_price(price_df, code, year)
-    if price is None:
+    if price is None or pd.isna(price):
         return 0, 0, 0
     row = use_df[use_df['藥品代碼'] == code]
     if row.empty:
         return price, 0, 0
     qty = row['含包裹支付的醫令量_合計'].values[0]
+    try:
+        qty = float(qty)
+    except:
+        qty = 0
     amt = price * qty
     return amt, price, qty
+
 
 # ====== 主程式 ======
 st.title("健保藥品主成分年度價量分析")
