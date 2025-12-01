@@ -133,4 +133,4 @@ if keyword:
         st.dataframe(df[show_cols], use_container_width=True)
 
 # 畫面下方貼圖
-st.image("S__38543373.jpg", caption="健保藥品分析示意圖", use_column_width=True)
+st.image("S__38543373.jpg", caption="White 6 - 健保藥品分析小幫手", use_column_width=300)
