@@ -74,7 +74,7 @@ def calc_annual_payment(price_df, use_df, code, year):
     amt = price * qty
     return amt, price, qty
 
-st.title("健保藥品主成分年度價量分析")
+st.title("健保藥品 2022~2024 年度價量分析")
 
 @st.cache_data
 def load_data():
