@@ -63,14 +63,17 @@ def format_number(n):
 def calc_annual_payment(price_df, use_df, code, year):
     price = get_longest_price(price_df, code, year)
     qty = 0.0
-    if not use_df.empty and '藥品代碼' in use_df.columns and '含包裹支付的醫令量_合計' in use_df.columns:
-        row = use_df[use_df['藥品代碼'] == code]
-        if not row.empty:
-            qty = row['含包裹支付的醫令量_合計'].values[0]
-            try:
-                qty = float(qty)
-            except Exception:
-                qty = 0.0
+    # 欄位名稱防呆
+    if not use_df.empty:
+        use_df.columns = use_df.columns.str.strip()
+        if '藥品代碼' in use_df.columns and '含包裹支付的醫令量_合計' in use_df.columns:
+            row = use_df[use_df['藥品代碼'] == code]
+            if not row.empty:
+                qty = row['含包裹支付的醫令量_合計'].values[0]
+                try:
+                    qty = float(qty)
+                except Exception:
+                    qty = 0.0
     amt = price * qty
     return amt, price, qty
 
