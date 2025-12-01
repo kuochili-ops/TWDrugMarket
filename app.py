@@ -102,3 +102,24 @@ if keyword:
             result.append({
                 '藥品代號': code,
                 '藥品英文名稱': name_en,
+                '藥品中文名稱': name_zh,
+                '成分': ingredient,
+                '藥商': vendor,
+                '2022支付價': format_number(price22),
+                '2022使用量': format_number(qty22),
+                '2022支付金額': format_number(amt22),
+                '2023支付價': format_number(price23),
+                '2023使用量': format_number(qty23),
+                '2023支付金額': format_number(amt23),
+                '2024支付價': format_number(price24),
+                '2024使用量': format_number(qty24),
+                '2024支付金額': format_number(amt24),
+                'ATC代碼': atc
+            })
+        df = pd.DataFrame(result)
+        show_cols = [
+            '藥品代號', '藥品英文名稱', '藥品中文名稱', '成分', '藥商',
+            '2022支付金額', '2023支付金額', '2024支付金額'
+        ]
+        st.dataframe(df[show_cols], use_container_width=True)
+        # 若需顯示更多細節，可取消下行註解
