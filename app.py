@@ -1,0 +1,117 @@
+
+import pandas as pd
+import streamlit as st
+from datetime import datetime
+
+# ====== 工具函數 ======
+def parse_roc_date(s):
+    """民國日期字串轉西元日期"""
+    s = str(int(s))
+    if len(s) == 7:
+        year = int(s[:3]) + 1911
+        month = int(s[3:5])
+        day = int(s[5:7])
+    elif len(s) == 6:
+        year = int(s[:2]) + 1911
+        month = int(s[2:4])
+        day = int(s[4:6])
+    else:
+        return None
+    return datetime(year, month, day)
+
+def get_longest_price(price_df, code, year):
+    """取得該年度時間最長的支付價"""
+    df = price_df[price_df['藥品代號'] == code].copy()
+    df['起'] = df['有效起日'].apply(parse_roc_date)
+    df['迄'] = df['有效迄日'].apply(parse_roc_date)
+    start = datetime(year, 1, 1)
+    end = datetime(year, 12, 31)
+    df = df[(df['起'] <= end) & (df['迄'] >= start)]
+    if df.empty:
+        return None
+    df['區間起'] = df['起'].apply(lambda d: max(d, start))
+    df['區間迄'] = df['迄'].apply(lambda d: min(d, end))
+    df['天數'] = (df['區間迄'] - df['區間起']).dt.days + 1
+    row = df.loc[df['天數'].idxmax()]
+    return row['支付價']
+
+def format_number(n):
+    """千分位逗點，保留一位小數"""
+    try:
+        return '{:,.1f}'.format(float(n))
+    except:
+        return n
+
+def calc_annual_payment(price_df, use_df, code, year):
+    """計算年度支付金額"""
+    price = get_longest_price(price_df, code, year)
+    if price is None:
+        return 0
+    row = use_df[use_df['藥品代碼'] == code]
+    if row.empty:
+        return 0
+    qty = row['含包裹支付的醫令量_合計'].values[0]
+    return price * qty, price, qty
+
+# ====== 主程式 ======
+st.title("健保藥品主成分年度價量分析")
+
+# 讀取資料
+@st.cache_data
+def load_data():
+    price1 = pd.read_csv('Price_ATC1.csv')
+    price2 = pd.read_csv('Price_ATC2.csv')
+    price_df = pd.concat([price1, price2], ignore_index=True)
+    use_2022 = pd.read_csv('A21030000I-E41005-001 (2022).csv')
+    use_2023 = pd.read_csv('A21030000I-E41005-002 (2023).csv')
+    use_2024 = pd.read_csv('A21030000I-E41005-003 (2024).csv')
+    return price_df, use_2022, use_2023, use_2024
+
+price_df, use_2022, use_2023, use_2024 = load_data()
+
+# 主成分搜尋
+keyword = st.text_input('請輸入主成分關鍵字（如 VENLAFAXINE）')
+if keyword:
+    sub_df = price_df[price_df['成分'].str.contains(keyword, case=False, na=False)]
+    if sub_df.empty:
+        st.warning('查無符合主成分的商品')
+    else:
+        codes = sub_df['藥品代號'].unique()
+        result = []
+        for _, row in sub_df.drop_duplicates('藥品代號').iterrows():
+            code = row['藥品代號']
+            name_en = row['藥品英文名稱']
+            name_zh = row['藥品中文名稱']
+            ingredient = row['成分']
+            vendor = row['藥商']
+            atc = row['ATC代碼']
+            # 計算三年度
+            amt22, price22, qty22 = calc_annual_payment(price_df, use_2022, code, 2022)
+            amt23, price23, qty23 = calc_annual_payment(price_df, use_2023, code, 2023)
+            amt24, price24, qty24 = calc_annual_payment(price_df, use_2024, code, 2024)
+            result.append({
+                '藥品代號': code,
+                '藥品英文名稱': name_en,
+                '藥品中文名稱': name_zh,
+                '成分': ingredient,
+                '藥商': vendor,
+                '2022支付價': format_number(price22),
+                '2022使用量': format_number(qty22),
+                '2022支付金額': format_number(amt22),
+                '2023支付價': format_number(price23),
+                '2023使用量': format_number(qty23),
+                '2023支付金額': format_number(amt23),
+                '2024支付價': format_number(price24),
+                '2024使用量': format_number(qty24),
+                '2024支付金額': format_number(amt24),
+                'ATC代碼': atc
+            })
+        df = pd.DataFrame(result)
+        # 只顯示主要欄位
+        show_cols = [
+            '藥品代號', '藥品英文名稱', '藥品中文名稱', '成分', '藥商',
+            '2022支付金額', '2023支付金額', '2024支付金額'
+        ]
+        st.dataframe(df[show_cols], use_container_width=True)
+        # 若需顯示更多細節，可取消下行註解
+        # st.dataframe(df, use_container_width=True)
