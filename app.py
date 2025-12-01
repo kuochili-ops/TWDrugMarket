@@ -2,14 +2,16 @@
 import pandas as pd
 import streamlit as st
 from datetime import datetime
-import chardet
 import os
 
 # ====== 工具函數 ======
-def detect_encoding(file_path):
-    with open(file_path, 'rb') as f:
-        result = chardet.detect(f.read(10000))
-    return result['encoding']
+def try_read_csv(file, encodings=['utf-8', 'big5', 'cp950']):
+    for enc in encodings:
+        try:
+            return pd.read_csv(file, encoding=enc)
+        except Exception:
+            continue
+    raise ValueError(f"{file} 無法用常見編碼讀取，請確認檔案格式。")
 
 def parse_roc_date(s):
     s = str(int(s))
@@ -65,18 +67,12 @@ st.write("目前目錄檔案：", os.listdir())
 
 @st.cache_data
 def load_data():
-    # 自動偵測編碼
-    enc_price1 = detect_encoding('Price_ATC1.csv')
-    enc_price2 = detect_encoding('Price_ATC2.csv')
-    enc_2022 = detect_encoding('A21030000I-E41005-001 (2022).csv')
-    enc_2023 = detect_encoding('A21030000I-E41005-002 (2023).csv')
-    enc_2024 = detect_encoding('A21030000I-E41005-003 (2024).csv')
-    price1 = pd.read_csv('Price_ATC1.csv', encoding=enc_price1)
-    price2 = pd.read_csv('Price_ATC2.csv', encoding=enc_price2)
+    price1 = try_read_csv('Price_ATC1.csv')
+    price2 = try_read_csv('Price_ATC2.csv')
     price_df = pd.concat([price1, price2], ignore_index=True)
-    use_2022 = pd.read_csv('A21030000I-E41005-001 (2022).csv', encoding=enc_2022)
-    use_2023 = pd.read_csv('A21030000I-E41005-002 (2023).csv', encoding=enc_2023)
-    use_2024 = pd.read_csv('A21030000I-E41005-003 (2024).csv', encoding=enc_2024)
+    use_2022 = try_read_csv('A21030000I-E41005-001 (2022).csv')
+    use_2023 = try_read_csv('A21030000I-E41005-002 (2023).csv')
+    use_2024 = try_read_csv('A21030000I-E41005-003 (2024).csv')
     return price_df, use_2022, use_2023, use_2024
 
 try:
