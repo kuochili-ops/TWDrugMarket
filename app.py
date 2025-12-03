@@ -118,10 +118,9 @@ if keyword:
                 'ATC代碼': atc
             })
         df = pd.DataFrame(result)
-
-        # index 從 1 開始
         df.index = range(1, len(df) + 1)
 
+        # 表1：各藥品支付金額
         st.subheader("各藥品支付金額")
         st.dataframe(
             df[['藥品代號','藥品英文名稱','藥品中文名稱','成分','藥商','2022支付金額','2023支付金額','2024支付金額']],
@@ -133,17 +132,29 @@ if keyword:
             }
         )
 
-        # ===== 新增「同規格藥品」加總表 =====
+        # 表2：同一主成分 + 單位含量加總
         summary = (
             df.groupby('成分', as_index=False)[['2022支付金額','2023支付金額','2024支付金額']]
             .sum()
         )
         summary.index = range(1, len(summary) + 1)
-
         st.subheader("同一主成分 + 單位含量 各年度加總支付金額")
-        st.dataframe(
-            summary,
-            use_container_width=True,
+        st.dataframe(summary, use_container_width=True,
+            column_config={
+                "2022支付金額": st.column_config.NumberColumn("2022支付金額", format="%.1f"),
+                "2023支付金額": st.column_config.NumberColumn("2023支付金額", format="%.1f"),
+                "2024支付金額": st.column_config.NumberColumn("2024支付金額", format="%.1f"),
+            }
+        )
+
+        # 表3：同一主成分 + 同藥商加總
+        summary_vendor = (
+            df.groupby(['成分','藥商'], as_index=False)[['2022支付金額','2023支付金額','2024支付金額']]
+            .sum()
+        )
+        summary_vendor.index = range(1, len(summary_vendor) + 1)
+        st.subheader("同一主成分 + 同藥商 各年度加總支付金額")
+        st.dataframe(summary_vendor, use_container_width=True,
             column_config={
                 "2022支付金額": st.column_config.NumberColumn("2022支付金額", format="%.1f"),
                 "2023支付金額": st.column_config.NumberColumn("2023支付金額", format="%.1f"),
@@ -160,5 +171,3 @@ if keyword:
             mime="text/csv"
         )
 
-# 畫面下方貼圖
-st.image("S__38543373.jpg", caption="White 6 - 健保藥品分析小幫手", width=200)
