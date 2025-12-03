@@ -129,6 +129,26 @@ if keyword:
             }
         )
 
+        # 顯示藥價調整表
+        for _, row in sub_df_product.drop_duplicates('藥品代號').iterrows():
+            code = row['藥品代號']
+            df_price = price_df[price_df['藥品代號'] == code].copy()
+            df_price['起'] = df_price['有效起日'].apply(parse_roc_date)
+            df_price['迄'] = df_price['有效迄日'].apply(parse_roc_date)
+            df_price['支付價'] = pd.to_numeric(df_price['支付價'], errors='coerce')
+            df_price = df_price.sort_values('起')
+            df_price['調整率'] = df_price['支付價'].pct_change().fillna(0) * 100
+
+            st.subheader(f"{keyword.upper()} 各時間階段藥價調整與調整率")
+            st.dataframe(
+                df_price[['起','迄','支付價','調整率']],
+                use_container_width=True,
+                column_config={
+                    "支付價": st.column_config.NumberColumn("支付價", format="%.2f"),
+                    "調整率": st.column_config.NumberColumn("調整率 (%)", format="%.2f"),
+                }
+            )
+
         # 是否顯示同成分名查詢
         if st.checkbox("顯示同成分名的查詢結果"):
             main_ingredient = sub_df_product['成分'].iloc[0].split()[0]
@@ -161,13 +181,25 @@ if keyword:
 
                 # 表1：各藥品支付金額
                 st.subheader("各藥品支付金額")
-                st.dataframe(df)
+                st.dataframe(df, use_container_width=True,
+                    column_config={
+                        "2022支付金額": st.column_config.NumberColumn("2022支付金額", format="%.1f"),
+                        "2023支付金額": st.column_config.NumberColumn("2023支付金額", format="%.1f"),
+                        "2024支付金額": st.column_config.NumberColumn("2024支付金額", format="%.1f"),
+                    }
+                )
 
                 # 表2：同規格藥品加總
                 summary = df.groupby('成分', as_index=False)[['2022支付金額','2023支付金額','2024支付金額']].sum()
                 summary.index = range(1, len(summary)+1)
                 st.subheader(f"{main_ingredient.upper()} 同規格藥品各年度加總支付金額")
-                st.dataframe(summary)
+                st.dataframe(summary, use_container_width=True,
+                    column_config={
+                        "2022支付金額": st.column_config.NumberColumn("2022支付金額", format="%.1f"),
+                        "2023支付金額": st.column_config.NumberColumn("2023支付金額", format="%.1f"),
+                        "2024支付金額": st.column_config.NumberColumn("2024支付金額", format="%.1f"),
+                    }
+                )
 
                 # 表3：同藥商加總（忽略含量）
                 df['主成分'] = df['成分'].str.split().str[0]
@@ -175,4 +207,10 @@ if keyword:
                 summary_vendor = summary_vendor[['藥商','2022支付金額','2023支付金額','2024支付金額']]
                 summary_vendor.index = range(1, len(summary_vendor)+1)
                 st.subheader(f"{main_ingredient.upper()} 同藥商產品各年度加總支付金額")
-                st.dataframe(summary_vendor)
+                st.dataframe(summary_vendor, use_container_width=True,
+                    column_config={
+                        "2022支付金額": st.column_config.NumberColumn("2022支付金額", format="%.1f"),
+                        "2023支付金額": st.column_config.NumberColumn("2023支付金額", format="%.1f"),
+                        "2024支付金額": st.column_config.NumberColumn("2024支付金額", format="%.1f"),
+                    }
+                )
