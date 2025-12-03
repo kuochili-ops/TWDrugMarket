@@ -100,7 +100,7 @@ if keyword:
             code = row['藥品代號']
             name_en = row['藥品英文名稱']
             name_zh = row['藥品中文名稱']
-            ingredient = row['成分']
+            ingredient = row['成分']   # 成分欄位已包含主成分+單位含量
             vendor = row['藥商']
             atc = row['ATC代碼']
             amt22, price22, qty22 = calc_annual_payment(price_df, use_2022, code, 2022)
@@ -122,8 +122,27 @@ if keyword:
         # index 從 1 開始
         df.index = range(1, len(df) + 1)
 
+        st.subheader("各藥品支付金額")
         st.dataframe(
             df[['藥品代號','藥品英文名稱','藥品中文名稱','成分','藥商','2022支付金額','2023支付金額','2024支付金額']],
+            use_container_width=True,
+            column_config={
+                "2022支付金額": st.column_config.NumberColumn("2022支付金額", format="%.1f"),
+                "2023支付金額": st.column_config.NumberColumn("2023支付金額", format="%.1f"),
+                "2024支付金額": st.column_config.NumberColumn("2024支付金額", format="%.1f"),
+            }
+        )
+
+        # ===== 新增「同規格藥品」加總表 =====
+        summary = (
+            df.groupby('成分', as_index=False)[['2022支付金額','2023支付金額','2024支付金額']]
+            .sum()
+        )
+        summary.index = range(1, len(summary) + 1)
+
+        st.subheader("同一主成分 + 單位含量 各年度加總支付金額")
+        st.dataframe(
+            summary,
             use_container_width=True,
             column_config={
                 "2022支付金額": st.column_config.NumberColumn("2022支付金額", format="%.1f"),
