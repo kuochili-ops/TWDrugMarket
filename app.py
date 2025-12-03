@@ -132,6 +132,7 @@ if keyword:
         # 顯示藥價調整表
         for _, row in sub_df_product.drop_duplicates('藥品代號').iterrows():
             code = row['藥品代號']
+            name_en = row['藥品英文名稱']
             df_price = price_df[price_df['藥品代號'] == code].copy()
             df_price['起'] = df_price['有效起日'].apply(parse_roc_date)
             df_price['迄'] = df_price['有效迄日'].apply(parse_roc_date)
@@ -139,7 +140,9 @@ if keyword:
             df_price = df_price.sort_values('起')
             df_price['調整率'] = df_price['支付價'].pct_change().fillna(0) * 100
 
-            st.subheader(f"{keyword.upper()} 各時間階段藥價調整與調整率")
+            # 修改標題：顯示商品名 + 藥品代號
+            st.subheader(f"{name_en} ({code}) 各時間階段藥價調整與調整率")
+
             st.dataframe(
                 df_price[['起','迄','支付價','調整率']],
                 use_container_width=True,
@@ -148,6 +151,7 @@ if keyword:
                     "調整率": st.column_config.NumberColumn("調整率 (%)", format="%.2f"),
                 }
             )
+
 
         # 是否顯示同成分名查詢
         if st.checkbox("顯示同成分名的查詢結果"):
