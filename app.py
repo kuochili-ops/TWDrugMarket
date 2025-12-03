@@ -31,7 +31,6 @@ def parse_roc_date(s):
         return datetime(year, month, day)
     except Exception:
         return None
-
 def get_longest_price(price_df, code, year):
     df = price_df[price_df['藥品代號'] == code].copy()
     df['起'] = df['有效起日'].apply(parse_roc_date)
@@ -66,7 +65,6 @@ def calc_annual_payment(price_df, use_df, code, year):
                     qty = 0.0
     amt = price * qty
     return amt, price, qty
-
 st.title("健保藥品 2022~2024 年度價量分析")
 
 @st.cache_data
@@ -88,17 +86,42 @@ try:
 except Exception as e:
     st.error(f"資料讀取失敗，請確認檔案存在且編碼正確。錯誤訊息：{e}")
     st.stop()
-
-keyword = st.text_input('請輸入主成分或商品英文名稱（如 VENLAFAXINE 或 XANAX）')
+keyword = st.text_input('請輸入主成分或商品英文名稱（如 VENLAFAXINE 或 ARCOXIA）')
 if keyword:
     # 商品名查詢
     sub_df_product = price_df[price_df['藥品英文名稱'].str.contains(keyword, case=False, na=False)]
     if not sub_df_product.empty:
         st.subheader(f"{keyword.upper()} 不同規格產品各年度支付金額")
-        df_product = sub_df_product[['藥品代號','藥品英文名稱','藥品中文名稱','成分','藥商',
-                                     '2022支付金額','2023支付金額','2024支付金額']].copy()
+
+        result_product = []
+        for _, row in sub_df_product.drop_duplicates('藥品代號').iterrows():
+            code = row['藥品代號']
+            name_en = row['藥品英文名稱']
+            name_zh = row['藥品中文名稱']
+            ingredient = row['成分']
+            vendor = row['藥商']
+            atc = row['ATC代碼']
+            amt22, _, _ = calc_annual_payment(price_df, use_2022, code, 2022)
+            amt23, _, _ = calc_annual_payment(price_df, use_2023, code, 2023)
+            amt24, _, _ = calc_annual_payment(price_df, use_2024, code, 2024)
+            result_product.append({
+                '藥品代號': code,
+                '藥品英文名稱': name_en,
+                '藥品中文名稱': name_zh,
+                '成分': ingredient,
+                '藥商': vendor,
+                '2022支付金額': amt22,
+                '2023支付金額': amt23,
+                '2024支付金額': amt24,
+                'ATC代碼': atc
+            })
+
+        df_product = pd.DataFrame(result_product)
         df_product.index = range(1, len(df_product)+1)
-        st.dataframe(df_product, use_container_width=True,
+
+        st.dataframe(df_product[['藥品代號','藥品英文名稱','藥品中文名稱','成分','藥商',
+                                 '2022支付金額','2023支付金額','2024支付金額']],
+            use_container_width=True,
             column_config={
                 "2022支付金額": st.column_config.NumberColumn("2022支付金額", format="%.1f"),
                 "2023支付金額": st.column_config.NumberColumn("2023支付金額", format="%.1f"),
@@ -111,31 +134,40 @@ if keyword:
             main_ingredient = sub_df_product['成分'].iloc[0].split()[0]
             sub_df = price_df[price_df['成分'].str.contains(main_ingredient, case=False, na=False)]
             if not sub_df.empty:
-                df = sub_df[['藥品代號','藥品英文名稱','藥品中文名稱','成分','藥商',
-                             '2022支付金額','2023支付金額','2024支付金額']].copy()
+                result = []
+                for _, row in sub_df.drop_duplicates('藥品代號').iterrows():
+                    code = row['藥品代號']
+                    name_en = row['藥品英文名稱']
+                    name_zh = row['藥品中文名稱']
+                    ingredient = row['成分']
+                    vendor = row['藥商']
+                    atc = row['ATC代碼']
+                    amt22, _, _ = calc_annual_payment(price_df, use_2022, code, 2022)
+                    amt23, _, _ = calc_annual_payment(price_df, use_2023, code, 2023)
+                    amt24, _, _ = calc_annual_payment(price_df, use_2024, code, 2024)
+                    result.append({
+                        '藥品代號': code,
+                        '藥品英文名稱': name_en,
+                        '藥品中文名稱': name_zh,
+                        '成分': ingredient,
+                        '藥商': vendor,
+                        '2022支付金額': amt22,
+                        '2023支付金額': amt23,
+                        '2024支付金額': amt24,
+                        'ATC代碼': atc
+                    })
+                df = pd.DataFrame(result)
                 df.index = range(1, len(df)+1)
 
                 # 表1：各藥品支付金額
                 st.subheader("各藥品支付金額")
-                st.dataframe(df, use_container_width=True,
-                    column_config={
-                        "2022支付金額": st.column_config.NumberColumn("2022支付金額", format="%.1f"),
-                        "2023支付金額": st.column_config.NumberColumn("2023支付金額", format="%.1f"),
-                        "2024支付金額": st.column_config.NumberColumn("2024支付金額", format="%.1f"),
-                    }
-                )
+                st.dataframe(df)
 
                 # 表2：同規格藥品加總
                 summary = df.groupby('成分', as_index=False)[['2022支付金額','2023支付金額','2024支付金額']].sum()
                 summary.index = range(1, len(summary)+1)
                 st.subheader(f"{main_ingredient.upper()} 同規格藥品各年度加總支付金額")
-                st.dataframe(summary, use_container_width=True,
-                    column_config={
-                        "2022支付金額": st.column_config.NumberColumn("2022支付金額", format="%.1f"),
-                        "2023支付金額": st.column_config.NumberColumn("2023支付金額", format="%.1f"),
-                        "2024支付金額": st.column_config.NumberColumn("2024支付金額", format="%.1f"),
-                    }
-                )
+                st.dataframe(summary)
 
                 # 表3：同藥商加總（忽略含量）
                 df['主成分'] = df['成分'].str.split().str[0]
@@ -143,10 +175,4 @@ if keyword:
                 summary_vendor = summary_vendor[['藥商','2022支付金額','2023支付金額','2024支付金額']]
                 summary_vendor.index = range(1, len(summary_vendor)+1)
                 st.subheader(f"{main_ingredient.upper()} 同藥商產品各年度加總支付金額")
-                st.dataframe(summary_vendor, use_container_width=True,
-                    column_config={
-                        "2022支付金額": st.column_config.NumberColumn("2022支付金額", format="%.1f"),
-                        "2023支付金額": st.column_config.NumberColumn("2023支付金額", format="%.1f"),
-                        "2024支付金額": st.column_config.NumberColumn("2024支付金額", format="%.1f"),
-                    }
-                )
+                st.dataframe(summary_vendor)
