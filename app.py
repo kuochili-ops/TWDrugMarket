@@ -163,4 +163,6 @@ if keyword:
             column_config={
                 "2022支付金額": st.column_config.NumberColumn("2022支付金額", format="%.1f"),
                 "2023支付金額": st.column_config.NumberColumn("2023支付金額", format="%.1f"),
-                "2024支付金
+                "2024支付金額": st.column_config.NumberColumn("2024支付金額", format="%.1f"),
+            }
+        )
