@@ -205,3 +205,21 @@ def show_ingredient_tables(sub_df, keyword):
             "2024支付金額": st.column_config.NumberColumn("2024支付金額", format="%.1f"),
         }
     )
+# ---------- 主程式呼叫 ----------
+keyword = st.text_input('請輸入主成分或商品英文名稱（如 VENLAFAXINE 或 ARCOXIA）')
+
+if keyword:
+    # 先查成分名
+    sub_df_ingredient = price_df[price_df['成分'].str.contains(keyword, case=False, na=False)]
+    if not sub_df_ingredient.empty:
+        show_ingredient_tables(sub_df_ingredient, keyword)
+    else:
+        # 再查商品名
+        sub_df_product = price_df[price_df['藥品英文名稱'].str.contains(keyword, case=False, na=False)]
+        if not sub_df_product.empty:
+            show_product_tables(sub_df_product, keyword)
+        else:
+            st.warning(f"查無 {keyword} 的成分名或商品名資料")
+
+# ---------- 最下面顯示白六的圖 ----------
+st.image("S__38543373.jpg", caption="白六的圖")
