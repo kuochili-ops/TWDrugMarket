@@ -126,11 +126,11 @@ if keyword:
             })
         df = pd.DataFrame(result)
 
-        # 加上序號欄位，從 1 開始
-        df.insert(0, '序號', range(1, len(df) + 1))
+        # 讓 index 從 1 開始
+        df.index = range(1, len(df) + 1)
 
         show_cols = [
-            '序號', '藥品代號', '藥品英文名稱', '藥品中文名稱', '成分', '藥商',
+            '藥品代號', '藥品英文名稱', '藥品中文名稱', '成分', '藥商',
             '2022支付金額', '2023支付金額', '2024支付金額'
         ]
         st.dataframe(df[show_cols], use_container_width=True)
