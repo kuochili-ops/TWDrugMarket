@@ -138,7 +138,7 @@ if keyword:
             .sum()
         )
         summary.index = range(1, len(summary) + 1)
-        st.subheader("同一主成分 + 單位含量 各年度加總支付金額")
+        st.subheader(f"{keyword.upper()} 同規格藥品各年度加總支付金額")
         st.dataframe(summary, use_container_width=True,
             column_config={
                 "2022支付金額": st.column_config.NumberColumn("2022支付金額", format="%.1f"),
@@ -148,9 +148,7 @@ if keyword:
         )
 
         # 表3：同一主成分 + 同藥商加總（忽略單位含量）
-        # 建立主成分欄位（去掉含量，只保留藥名）
         df['主成分'] = df['成分'].str.split().str[0]
-
         summary_vendor = (
             df.groupby(['主成分','藥商'], as_index=False)[['2022支付金額','2023支付金額','2024支付金額']]
             .sum()
