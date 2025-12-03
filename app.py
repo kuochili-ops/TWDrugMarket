@@ -101,7 +101,6 @@ if keyword:
     if sub_df.empty:
         st.warning('查無符合主成分的商品')
     else:
-        codes = sub_df['藥品代號'].unique()
         result = []
         for _, row in sub_df.drop_duplicates('藥品代號').iterrows():
             code = row['藥品代號']
@@ -119,6 +118,9 @@ if keyword:
                 '藥品中文名稱': name_zh,
                 '成分': ingredient,
                 '藥商': vendor,
+                '2022支付金額_raw': amt22,
+                '2023支付金額_raw': amt23,
+                '2024支付金額_raw': amt24,
                 '2022支付金額': format_number(amt22),
                 '2023支付金額': format_number(amt23),
                 '2024支付金額': format_number(amt24),
@@ -126,7 +128,7 @@ if keyword:
             })
         df = pd.DataFrame(result)
 
-        # 讓 index 從 1 開始
+        # index 從 1 開始
         df.index = range(1, len(df) + 1)
 
         show_cols = [
@@ -134,6 +136,15 @@ if keyword:
             '2022支付金額', '2023支付金額', '2024支付金額'
         ]
         st.dataframe(df[show_cols], use_container_width=True)
+
+        # 提供下載 CSV 功能
+        csv = df.to_csv(index=True, encoding='utf-8-sig')
+        st.download_button(
+            label="下載查詢結果 CSV",
+            data=csv,
+            file_name="drug_payment_analysis.csv",
+            mime="text/csv"
+        )
 
 # 畫面下方貼圖
 st.image("S__38543373.jpg", caption="White 6 - 健保藥品分析小幫手", width=200)
