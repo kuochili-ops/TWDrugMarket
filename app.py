@@ -51,12 +51,6 @@ def get_longest_price(price_df, code, year):
         price = 0.0
     return price
 
-def format_number(n):
-    try:
-        return '{:,.1f}'.format(float(n))
-    except Exception:
-        return n
-
 def calc_annual_payment(price_df, use_df, code, year):
     price = get_longest_price(price_df, code, year)
     qty = 0.0
@@ -118,12 +112,9 @@ if keyword:
                 '藥品中文名稱': name_zh,
                 '成分': ingredient,
                 '藥商': vendor,
-                '2022支付金額_raw': amt22,
-                '2023支付金額_raw': amt23,
-                '2024支付金額_raw': amt24,
-                '2022支付金額': format_number(amt22),
-                '2023支付金額': format_number(amt23),
-                '2024支付金額': format_number(amt24),
+                '2022支付金額': amt22,
+                '2023支付金額': amt23,
+                '2024支付金額': amt24,
                 'ATC代碼': atc
             })
         df = pd.DataFrame(result)
@@ -131,11 +122,15 @@ if keyword:
         # index 從 1 開始
         df.index = range(1, len(df) + 1)
 
-        show_cols = [
-            '藥品代號', '藥品英文名稱', '藥品中文名稱', '成分', '藥商',
-            '2022支付金額', '2023支付金額', '2024支付金額'
-        ]
-        st.dataframe(df[show_cols], use_container_width=True)
+        st.dataframe(
+            df[['藥品代號','藥品英文名稱','藥品中文名稱','成分','藥商','2022支付金額','2023支付金額','2024支付金額']],
+            use_container_width=True,
+            column_config={
+                "2022支付金額": st.column_config.NumberColumn("2022支付金額", format="%.1f"),
+                "2023支付金額": st.column_config.NumberColumn("2023支付金額", format="%.1f"),
+                "2024支付金額": st.column_config.NumberColumn("2024支付金額", format="%.1f"),
+            }
+        )
 
         # 提供下載 CSV 功能
         csv = df.to_csv(index=True, encoding='utf-8-sig')
