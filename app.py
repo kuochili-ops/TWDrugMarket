@@ -100,7 +100,7 @@ if keyword:
             code = row['藥品代號']
             name_en = row['藥品英文名稱']
             name_zh = row['藥品中文名稱']
-            ingredient = row['成分']   # 成分欄位已包含主成分+單位含量
+            ingredient = row['成分']   # 成分欄位包含主成分+單位含量
             vendor = row['藥商']
             atc = row['ATC代碼']
             amt22, price22, qty22 = calc_annual_payment(price_df, use_2022, code, 2022)
@@ -147,27 +147,20 @@ if keyword:
             }
         )
 
-        # 表3：同一主成分 + 同藥商加總
+        # 表3：同一主成分 + 同藥商加總（忽略單位含量）
+        # 建立主成分欄位（去掉含量，只保留藥名）
+        df['主成分'] = df['成分'].str.split().str[0]
+
         summary_vendor = (
-            df.groupby(['成分','藥商'], as_index=False)[['2022支付金額','2023支付金額','2024支付金額']]
+            df.groupby(['主成分','藥商'], as_index=False)[['2022支付金額','2023支付金額','2024支付金額']]
             .sum()
         )
+        summary_vendor = summary_vendor[['藥商','2022支付金額','2023支付金額','2024支付金額']]
         summary_vendor.index = range(1, len(summary_vendor) + 1)
-        st.subheader("同一主成分 + 同藥商 各年度加總支付金額")
+
+        st.subheader(f"{keyword.upper()} 同藥商產品各年度加總支付金額")
         st.dataframe(summary_vendor, use_container_width=True,
             column_config={
                 "2022支付金額": st.column_config.NumberColumn("2022支付金額", format="%.1f"),
                 "2023支付金額": st.column_config.NumberColumn("2023支付金額", format="%.1f"),
-                "2024支付金額": st.column_config.NumberColumn("2024支付金額", format="%.1f"),
-            }
-        )
-
-        # 提供下載 CSV 功能
-        csv = df.to_csv(index=True, encoding='utf-8-sig')
-        st.download_button(
-            label="下載查詢結果 CSV",
-            data=csv,
-            file_name="drug_payment_analysis.csv",
-            mime="text/csv"
-        )
-
+                "2024支付金
