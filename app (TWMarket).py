@@ -236,7 +236,7 @@ if keyword:
             st.warning(f"查無 {keyword} 的成分名或商品名資料")
 
 # ------- 藥商查詢 -------
-vendor_keyword = st.text_input('請輸入藥商名稱查詢（如 台灣羅氏、台灣默沙東等）')
+vendor_keyword = st.text_input('請輸入藥商名稱查詢（如 台灣羅氏、台灣默沙東等）*Serena 要的')
 
 if vendor_keyword:
     # 只查藥商欄位
