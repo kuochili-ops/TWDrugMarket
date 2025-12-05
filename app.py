@@ -205,7 +205,7 @@ def show_ingredient_tables(sub_df, keyword):
                  }
     )
 
-# ------- 主程式呼叫 -------
+# ------- 主成分/商品名查詢 -------
 keyword = st.text_input('請輸入主成分或商品英文名稱（如 VENLAFAXINE 或 ARCOXIA）')
 
 if keyword:
@@ -234,6 +234,73 @@ if keyword:
                         st.warning(f"查無成分「{ingredient_name}」的資料")
         else:
             st.warning(f"查無 {keyword} 的成分名或商品名資料")
-# ---------- 最下面顯示白六的圖 ----------
-st.image("S__38543373.jpg", caption="白六-健保資訊查詢小幫手")
+
+# ------- 藥商查詢 -------
+vendor_keyword = st.text_input('請輸入藥商名稱查詢（如 台灣羅氏、台灣默沙東等）')
+
+if vendor_keyword:
+    # 只查藥商欄位
+    sub_df_vendor = price_df[price_df['藥商'].str.contains(vendor_keyword, case=False, na=False)]
+    if not sub_df_vendor.empty:
+        # 各產品各年度支付金額
+        result_vendor = []
+        for _, row in sub_df_vendor.drop_duplicates('藥品代號').iterrows():
+            code = row['藥品代號']
+            name_en = row['藥品英文名稱']
+            name_zh = row['藥品中文名稱']
+            ingredient = row['成分']
+            amt22, _, _ = calc_annual_payment(price_df, use_2022, code, 2022)
+            amt23, _, _ = calc_annual_payment(price_df, use_2023, code, 2023)
+            amt24, _, _ = calc_annual_payment(price_df, use_2024, code, 2024)
+            result_vendor.append({
+                '藥品代號': code,
+                '藥品英文名稱': name_en,
+                '藥品中文名稱': name_zh,
+                '成分': ingredient,
+                '2022支付金額': amt22,
+                '2023支付金額': amt23,
+                '2024支付金額': amt24
+            })
+        df_vendor = pd.DataFrame(result_vendor)
+        df_vendor.index = range(1, len(df_vendor)+1)
+        st.subheader(f"{vendor_keyword} 各產品各年度支付金額")
+        st.dataframe(df_vendor, use_container_width=True,
+                     column_config={
+                         "2022支付金額": st.column_config.NumberColumn("2022支付金額", format="%.1f"),
+                         "2023支付金額": st.column_config.NumberColumn("2023支付金額", format="%.1f"),
+                         "2024支付金額": st.column_config.NumberColumn("2024支付金額", format="%.1f"),
+                     }
+        )
+        # 加總該藥商所有藥品的各年度支付金額
+        total_22 = df_vendor['2022支付金額'].sum()
+        total_23 = df_vendor['2023支付金額'].sum()
+        total_24 = df_vendor['2024支付金額'].sum()
+        st.subheader(f"{vendor_keyword} 所有藥品各年度支付金額加總")
+        st.write(f"2022年：{total_22:,.1f} 元")
+        st.write(f"2023年：{total_23:,.1f} 元")
+        st.write(f"2024年：{total_24:,.1f} 元")
+        # 選擇要顯示哪項藥品的藥價調整
+        product_options = df_vendor['藥品英文名稱'] + " (" + df_vendor['藥品代號'] + ")"
+        selected_product = st.selectbox("選擇要顯示藥價調整的藥品：", product_options)
+        if selected_product:
+            # 取得選擇的藥品代號
+            selected_code = selected_product.split('(')[-1].replace(')', '').strip()
+            df_price = price_df[price_df['藥品代號'] == selected_code].copy()
+            df_price['起'] = df_price['有效起日'].apply(parse_roc_date)
+            df_price['迄'] = df_price['有效迄日'].apply(parse_roc_date)
+            df_price['支付價'] = pd.to_numeric(df_price['支付價'], errors='coerce')
+            df_price = df_price.sort_values('起')
+            df_price['調整率'] = df_price['支付價'].pct_change().fillna(0) * 100
+            st.subheader(f"{selected_product} 各時間階段藥價調整與調整率")
+            st.dataframe(df_price[['起','迄','支付價','調整率']],
+                         use_container_width=True,
+                         column_config={
+                             "支付價": st.column_config.NumberColumn("支付價", format="%.2f"),
+                             "調整率": st.column_config.NumberColumn("調整率 (%)", format="%.2f"),
+                         }
+            )
+    else:
+        st.warning(f"查無藥商「{vendor_keyword}」的資料")
+
 # ------- 最下面顯示白六的圖 -------
+st.image("S__38543373.jpg", caption="白六-健保資料查詢小幫手")
