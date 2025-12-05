@@ -234,5 +234,6 @@ if keyword:
                         st.warning(f"查無成分「{ingredient_name}」的資料")
         else:
             st.warning(f"查無 {keyword} 的成分名或商品名資料")
-
+# ---------- 最下面顯示白六的圖 ----------
+st.image("S__38543373.jpg", caption="白六-健保資訊查詢小幫手")
 # ------- 最下面顯示白六的圖 -------
