@@ -303,4 +303,4 @@ if vendor_keyword:
         st.warning(f"查無藥商「{vendor_keyword}」的資料")
 
 # ------- 最下面顯示白六的圖 -------
-st.image("S__38543373.jpg", caption="白六的圖")
+st.image("S__38543373.jpg", caption="白六-健保資料查詢小幫手")
