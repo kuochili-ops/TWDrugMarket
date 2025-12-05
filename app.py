@@ -1,3 +1,4 @@
+
 import pandas as pd
 import streamlit as st
 from datetime import datetime
@@ -31,6 +32,7 @@ def parse_roc_date(s):
         return datetime(year, month, day)
     except Exception:
         return None
+
 def get_longest_price(price_df, code, year):
     df = price_df[price_df['藥品代號'] == code].copy()
     df['起'] = df['有效起日'].apply(parse_roc_date)
@@ -59,12 +61,13 @@ def calc_annual_payment(price_df, use_df, code, year):
             row = use_df[use_df['藥品代碼'] == code]
             if not row.empty:
                 qty = row['含包裹支付的醫令量_合計'].values[0]
-                try:
-                    qty = float(qty)
-                except Exception:
-                    qty = 0.0
+            try:
+                qty = float(qty)
+            except Exception:
+                qty = 0.0
     amt = price * qty
     return amt, price, qty
+
 st.title("健保藥品 2022~2024 年度價量分析")
 
 @st.cache_data
@@ -86,6 +89,7 @@ try:
 except Exception as e:
     st.error(f"資料讀取失敗，請確認檔案存在且編碼正確。錯誤訊息：{e}")
     st.stop()
+
 def show_product_tables(sub_df_product, keyword):
     # 年度金額表
     result_product = []
@@ -110,21 +114,18 @@ def show_product_tables(sub_df_product, keyword):
             '2024支付金額': amt24,
             'ATC代碼': atc
         })
-
     df_product = pd.DataFrame(result_product)
     df_product.index = range(1, len(df_product)+1)
-
     st.subheader(f"{keyword.upper()} 不同規格產品各年度支付金額")
     st.dataframe(df_product[['藥品代號','藥品英文名稱','藥品中文名稱','成分','藥商',
                              '2022支付金額','2023支付金額','2024支付金額']],
-        use_container_width=True,
-        column_config={
-            "2022支付金額": st.column_config.NumberColumn("2022支付金額", format="%.1f"),
-            "2023支付金額": st.column_config.NumberColumn("2023支付金額", format="%.1f"),
-            "2024支付金額": st.column_config.NumberColumn("2024支付金額", format="%.1f"),
-        }
+                 use_container_width=True,
+                 column_config={
+                     "2022支付金額": st.column_config.NumberColumn("2022支付金額", format="%.1f"),
+                     "2023支付金額": st.column_config.NumberColumn("2023支付金額", format="%.1f"),
+                     "2024支付金額": st.column_config.NumberColumn("2024支付金額", format="%.1f"),
+                 }
     )
-
     # 各規格價格調整表
     for _, row in sub_df_product.drop_duplicates('藥品代號').iterrows():
         code = row['藥品代號']
@@ -135,15 +136,16 @@ def show_product_tables(sub_df_product, keyword):
         df_price['支付價'] = pd.to_numeric(df_price['支付價'], errors='coerce')
         df_price = df_price.sort_values('起')
         df_price['調整率'] = df_price['支付價'].pct_change().fillna(0) * 100
-
         st.subheader(f"{name_en} ({code}) 各時間階段藥價調整與調整率")
         st.dataframe(df_price[['起','迄','支付價','調整率']],
-            use_container_width=True,
-            column_config={
-                "支付價": st.column_config.NumberColumn("支付價", format="%.2f"),
-                "調整率": st.column_config.NumberColumn("調整率 (%)", format="%.2f"),
-            }
+                     use_container_width=True,
+                     column_config={
+                         "支付價": st.column_config.NumberColumn("支付價", format="%.2f"),
+                         "調整率": st.column_config.NumberColumn("調整率 (%)", format="%.2f"),
+                     }
         )
+    return df_product  # 回傳以便後續取得成分
+
 def show_ingredient_tables(sub_df, keyword):
     result = []
     for _, row in sub_df.drop_duplicates('藥品代號').iterrows():
@@ -169,29 +171,26 @@ def show_ingredient_tables(sub_df, keyword):
         })
     df = pd.DataFrame(result)
     df.index = range(1, len(df)+1)
-
     # 表1：各藥品支付金額
     st.subheader("各藥品支付金額")
     st.dataframe(df, use_container_width=True,
-        column_config={
-            "2022支付金額": st.column_config.NumberColumn("2022支付金額", format="%.1f"),
-            "2023支付金額": st.column_config.NumberColumn("2023支付金額", format="%.1f"),
-            "2024支付金額": st.column_config.NumberColumn("2024支付金額", format="%.1f"),
-        }
+                 column_config={
+                     "2022支付金額": st.column_config.NumberColumn("2022支付金額", format="%.1f"),
+                     "2023支付金額": st.column_config.NumberColumn("2023支付金額", format="%.1f"),
+                     "2024支付金額": st.column_config.NumberColumn("2024支付金額", format="%.1f"),
+                 }
     )
-
     # 表2：同規格藥品加總
     summary = df.groupby('成分', as_index=False)[['2022支付金額','2023支付金額','2024支付金額']].sum()
     summary.index = range(1, len(summary)+1)
     st.subheader(f"{keyword.upper()} 同規格藥品各年度加總支付金額")
     st.dataframe(summary, use_container_width=True,
-        column_config={
-            "2022支付金額": st.column_config.NumberColumn("2022支付金額", format="%.1f"),
-            "2023支付金額": st.column_config.NumberColumn("2023支付金額", format="%.1f"),
-            "2024支付金額": st.column_config.NumberColumn("2024支付金額", format="%.1f"),
-        }
+                 column_config={
+                     "2022支付金額": st.column_config.NumberColumn("2022支付金額", format="%.1f"),
+                     "2023支付金額": st.column_config.NumberColumn("2023支付金額", format="%.1f"),
+                     "2024支付金額": st.column_config.NumberColumn("2024支付金額", format="%.1f"),
+                 }
     )
-
     # 表3：同藥商加總
     df['主成分'] = df['成分'].str.split().str[0]
     summary_vendor = df.groupby(['主成分','藥商'], as_index=False)[['2022支付金額','2023支付金額','2024支付金額']].sum()
@@ -199,13 +198,14 @@ def show_ingredient_tables(sub_df, keyword):
     summary_vendor.index = range(1, len(summary_vendor)+1)
     st.subheader(f"{keyword.upper()} 同藥商產品各年度加總支付金額")
     st.dataframe(summary_vendor, use_container_width=True,
-        column_config={
-            "2022支付金額": st.column_config.NumberColumn("2022支付金額", format="%.1f"),
-            "2023支付金額": st.column_config.NumberColumn("2023支付金額", format="%.1f"),
-            "2024支付金額": st.column_config.NumberColumn("2024支付金額", format="%.1f"),
-        }
+                 column_config={
+                     "2022支付金額": st.column_config.NumberColumn("2022支付金額", format="%.1f"),
+                     "2023支付金額": st.column_config.NumberColumn("2023支付金額", format="%.1f"),
+                     "2024支付金額": st.column_config.NumberColumn("2024支付金額", format="%.1f"),
+                 }
     )
-# ---------- 主程式呼叫 ----------
+
+# ------- 主程式呼叫 -------
 keyword = st.text_input('請輸入主成分或商品英文名稱（如 VENLAFAXINE 或 ARCOXIA）')
 
 if keyword:
@@ -217,9 +217,22 @@ if keyword:
         # 再查商品名
         sub_df_product = price_df[price_df['藥品英文名稱'].str.contains(keyword, case=False, na=False)]
         if not sub_df_product.empty:
-            show_product_tables(sub_df_product, keyword)
+            df_product = show_product_tables(sub_df_product, keyword)
+            # 取得所有商品的成分（去重）
+            ingredient_list = df_product['成分'].dropna().unique().tolist()
+            if ingredient_list:
+                # 若有多個成分，讓使用者選擇
+                if len(ingredient_list) == 1:
+                    ingredient_name = ingredient_list[0]
+                else:
+                    ingredient_name = st.selectbox("此商品包含多個成分，請選擇要查詢的成分：", ingredient_list)
+                if st.button(f"是否要以成分「{ingredient_name}」進行查詢？"):
+                    sub_df_ingredient2 = price_df[price_df['成分'].str.contains(ingredient_name, case=False, na=False)]
+                    if not sub_df_ingredient2.empty:
+                        show_ingredient_tables(sub_df_ingredient2, ingredient_name)
+                    else:
+                        st.warning(f"查無成分「{ingredient_name}」的資料")
         else:
             st.warning(f"查無 {keyword} 的成分名或商品名資料")
 
-# ---------- 最下面顯示白六的圖 ----------
-st.image("S__38543373.jpg", caption="白六的圖")
+# ------- 最下面顯示白六的圖 -------
