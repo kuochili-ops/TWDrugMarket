@@ -214,6 +214,13 @@ def show_ingredient_tables(sub_df, keyword):
                      "2024支付金額": st.column_config.NumberColumn("2024支付金額", format="%.1f"),
                  }
     )
+    # 新增：同規格藥品適應症查詢
+    product_names = df['藥品英文名稱'].dropna().unique().tolist()
+    if product_names:
+        selected_product = st.selectbox("選擇一個商品查詢適應症：", product_names)
+        indication_info = get_indication_by_en_name(selected_product)
+        with st.expander("適應症"):
+            st.write(indication_info)
     # 表3：同藥商加總
     df['主成分'] = df['成分'].str.split().str[0]
     summary_vendor = df.groupby(['主成分','藥商'], as_index=False)[['2022支付金額','2023支付金額','2024支付金額']].sum()
@@ -256,6 +263,7 @@ if keyword:
                         st.warning(f"查無成分「{ingredient_name}」的資料")
         else:
             st.warning(f"查無 {keyword} 的成分名或商品名資料")
+
 
 # ------- 藥商查詢 -------
 vendor_keyword = st.text_input('請輸入藥商名稱查詢（如 台灣羅氏、台灣默沙東等）*Serena 要的')
@@ -312,3 +320,20 @@ if vendor_keyword:
             df_price['支付價'] = pd.to_numeric(df_price['支付價'], errors='coerce')
             df_price = df_price.sort_values('起')
             df_price['調整率'] = df_price['支付價'].pct_change().fillna(0) * 100
+            indication_info = get_indication_by_en_name(df_vendor[df_vendor['藥品代號'] == selected_code]['藥品英文名稱'].values[0])
+            st.subheader(f"{selected_product} 各時間階段藥價調整與調整率")
+            with st.expander("適應症"):
+                st.write(indication_info)
+            st.dataframe(df_price[['起','迄','支付價','調整率']],
+                         use_container_width=True,
+                         column_config={
+                             "支付價": st.column_config.NumberColumn("支付價", format="%.2f"),
+                             "調整率": st.column_config.NumberColumn("調整率 (%)", format="%.2f"),
+                         }
+            )
+    else:
+        st.warning(f"查無藥商「{vendor_keyword}」的資料")
+
+# ------- 最下面顯示白六的圖 -------
+st.image("S__38543373.jpg", caption="白六-健保資料查詢小幫手")
+
