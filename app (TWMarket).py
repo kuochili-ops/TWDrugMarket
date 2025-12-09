@@ -24,7 +24,8 @@ def get_indication_by_en_name(en_name: str) -> str:
         return "（適應症資料讀取失敗）"
     if '英文品名' not in df.columns or '適應症' not in df.columns:
         return "（缺少適應症欄位）"
-    result = df[df['英文品名'].str.contains(en_name, case=False, na=False)]
+    # 關鍵修正：regex=False
+    result = df[df['英文品名'].str.contains(en_name, case=False, na=False, regex=False)]
     if result.empty:
         return "（查無適應症資料）"
     indications = result['適應症'].dropna().unique().tolist()
@@ -105,7 +106,6 @@ try:
     price_df, use_2022, use_2023, use_2024 = load_data()
 except Exception as e:
     st.error(f"資料讀取失敗，請確認檔案存在且編碼正確。錯誤訊息：{e}")
-    st.stop()
 
 def show_product_tables(sub_df_product, keyword):
     # 年度金額表
@@ -264,7 +264,6 @@ if keyword:
         else:
             st.warning(f"查無 {keyword} 的成分名或商品名資料")
 
-
 # ------- 藥商查詢 -------
 vendor_keyword = st.text_input('請輸入藥商名稱查詢（如 台灣羅氏、台灣默沙東等）*Serena 要的')
 if vendor_keyword:
@@ -335,5 +334,3 @@ if vendor_keyword:
         st.warning(f"查無藥商「{vendor_keyword}」的資料")
 
 # ------- 最下面顯示白六的圖 -------
-st.image("S__38543373.jpg", caption="白六-健保資料查詢小幫手")
-
