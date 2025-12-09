@@ -134,7 +134,9 @@ def show_product_tables(sub_df_product, keyword):
     df_product = pd.DataFrame(result_product)
     df_product.index = range(1, len(df_product)+1)
     indication_info = get_indication_by_en_name(keyword)
-    st.subheader(f"{keyword.upper()} 不同規格產品各年度支付金額（適應症：{indication_info}）")
+    st.subheader(f"{keyword.upper()} 不同規格產品各年度支付金額")
+    with st.expander("適應症"):
+        st.write(indication_info)
     st.dataframe(df_product[['藥品代號','藥品英文名稱','藥品中文名稱','成分','藥商',
                              '2022支付金額','2023支付金額','2024支付金額']],
                  use_container_width=True,
@@ -155,7 +157,9 @@ def show_product_tables(sub_df_product, keyword):
         df_price = df_price.sort_values('起')
         df_price['調整率'] = df_price['支付價'].pct_change().fillna(0) * 100
         indication_info = get_indication_by_en_name(name_en)
-        st.subheader(f"{name_en} ({code}) 各時間階段藥價調整與調整率（適應症：{indication_info}）")
+        st.subheader(f"{name_en} ({code}) 各時間階段藥價調整與調整率")
+        with st.expander("適應症"):
+            st.write(indication_info)
         st.dataframe(df_price[['起','迄','支付價','調整率']],
                      use_container_width=True,
                      column_config={
