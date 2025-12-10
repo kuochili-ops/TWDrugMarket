@@ -13,24 +13,6 @@ def try_read_csv(file, encodings=['utf-8-sig', 'utf-8', 'big5', 'cp950']):
             continue
     raise ValueError(f"{file} 無法用常見編碼讀取，請確認檔案格式。")
 
-def get_indication_by_en_name(en_name: str) -> str:
-    """
-    根據英文品名從 37_2.csv 取得適應症資訊。
-    """
-    try:
-        df = try_read_csv('37_2.csv')
-        df.columns = df.columns.str.strip()
-    except Exception as e:
-        return "（適應症資料讀取失敗）"
-    if '英文品名' not in df.columns or '適應症' not in df.columns:
-        return "（缺少適應症欄位）"
-    # 關鍵修正：regex=False
-    result = df[df['英文品名'].str.contains(en_name, case=False, na=False, regex=False)]
-    if result.empty:
-        return "（查無適應症資料）"
-    indications = result['適應症'].dropna().unique().tolist()
-    return "；".join(indications)
-
 def parse_roc_date(s):
     try:
         s = str(int(s))
@@ -79,10 +61,10 @@ def calc_annual_payment(price_df, use_df, code, year):
             row = use_df[use_df['藥品代碼'] == code]
             if not row.empty:
                 qty = row['含包裹支付的醫令量_合計'].values[0]
-    try:
-        qty = float(qty)
-    except Exception:
-        qty = 0.0
+            try:
+                qty = float(qty)
+            except Exception:
+                qty = 0.0
     amt = price * qty
     return amt, price, qty
 
@@ -106,6 +88,7 @@ try:
     price_df, use_2022, use_2023, use_2024 = load_data()
 except Exception as e:
     st.error(f"資料讀取失敗，請確認檔案存在且編碼正確。錯誤訊息：{e}")
+    st.stop()
 
 def show_product_tables(sub_df_product, keyword):
     # 年度金額表
@@ -133,10 +116,7 @@ def show_product_tables(sub_df_product, keyword):
         })
     df_product = pd.DataFrame(result_product)
     df_product.index = range(1, len(df_product)+1)
-    indication_info = get_indication_by_en_name(keyword)
     st.subheader(f"{keyword.upper()} 不同規格產品各年度支付金額")
-    with st.expander("適應症"):
-        st.write(indication_info)
     st.dataframe(df_product[['藥品代號','藥品英文名稱','藥品中文名稱','成分','藥商',
                              '2022支付金額','2023支付金額','2024支付金額']],
                  use_container_width=True,
@@ -156,10 +136,7 @@ def show_product_tables(sub_df_product, keyword):
         df_price['支付價'] = pd.to_numeric(df_price['支付價'], errors='coerce')
         df_price = df_price.sort_values('起')
         df_price['調整率'] = df_price['支付價'].pct_change().fillna(0) * 100
-        indication_info = get_indication_by_en_name(name_en)
         st.subheader(f"{name_en} ({code}) 各時間階段藥價調整與調整率")
-        with st.expander("適應症"):
-            st.write(indication_info)
         st.dataframe(df_price[['起','迄','支付價','調整率']],
                      use_container_width=True,
                      column_config={
@@ -167,7 +144,7 @@ def show_product_tables(sub_df_product, keyword):
                          "調整率": st.column_config.NumberColumn("調整率 (%)", format="%.2f"),
                      }
         )
-    return df_product # 回傳以便後續取得成分
+    return df_product  # 回傳以便後續取得成分
 
 def show_ingredient_tables(sub_df, keyword):
     result = []
@@ -214,13 +191,6 @@ def show_ingredient_tables(sub_df, keyword):
                      "2024支付金額": st.column_config.NumberColumn("2024支付金額", format="%.1f"),
                  }
     )
-    # 新增：同規格藥品適應症查詢
-    product_names = df['藥品英文名稱'].dropna().unique().tolist()
-    if product_names:
-        selected_product = st.selectbox("選擇一個商品查詢適應症：", product_names)
-        indication_info = get_indication_by_en_name(selected_product)
-        with st.expander("適應症"):
-            st.write(indication_info)
     # 表3：同藥商加總
     df['主成分'] = df['成分'].str.split().str[0]
     summary_vendor = df.groupby(['主成分','藥商'], as_index=False)[['2022支付金額','2023支付金額','2024支付金額']].sum()
@@ -237,6 +207,7 @@ def show_ingredient_tables(sub_df, keyword):
 
 # ------- 主成分/商品名查詢 -------
 keyword = st.text_input('請輸入主成分或商品英文名稱（如 VENLAFAXINE 或 ARCOXIA）')
+
 if keyword:
     # 先查成分名
     sub_df_ingredient = price_df[price_df['成分'].str.contains(keyword, case=False, na=False)]
@@ -265,7 +236,8 @@ if keyword:
             st.warning(f"查無 {keyword} 的成分名或商品名資料")
 
 # ------- 藥商查詢 -------
-vendor_keyword = st.text_input('請輸入藥商名稱查詢（如 台灣羅氏、台灣默沙東等）*Serena 要的🩷')
+vendor_keyword = st.text_input('請輸入藥商名稱查詢（如 台灣羅氏、台灣默沙東等）*Serena 要的')
+
 if vendor_keyword:
     # 只查藥商欄位
     sub_df_vendor = price_df[price_df['藥商'].str.contains(vendor_keyword, case=False, na=False)]
@@ -319,10 +291,7 @@ if vendor_keyword:
             df_price['支付價'] = pd.to_numeric(df_price['支付價'], errors='coerce')
             df_price = df_price.sort_values('起')
             df_price['調整率'] = df_price['支付價'].pct_change().fillna(0) * 100
-            indication_info = get_indication_by_en_name(df_vendor[df_vendor['藥品代號'] == selected_code]['藥品英文名稱'].values[0])
             st.subheader(f"{selected_product} 各時間階段藥價調整與調整率")
-            with st.expander("適應症"):
-                st.write(indication_info)
             st.dataframe(df_price[['起','迄','支付價','調整率']],
                          use_container_width=True,
                          column_config={
@@ -335,3 +304,39 @@ if vendor_keyword:
 
 # ------- 最下面顯示白六的圖 -------
 st.image("S__38543373.jpg", caption="白六-健保資料查詢小幫手")
+
+
+
+# ===== 新增功能：ATC 金額占比分析 =====
+if 'df_product' in locals() and not df_product.empty:
+    enable_atc_calc = st.checkbox("啟動 ATC 金額占比計算")
+    if enable_atc_calc:
+        st.subheader("ATC 金額占比分析")
+        atc_code_5 = df_product['ATC代碼'].dropna().iloc[0]
+        atc_code_4 = atc_code_5[:5]
+        st.write(f"第五層 ATC Code：{atc_code_5}")
+        st.write(f"第四層 ATC Code：{atc_code_4}")
+
+        # 計算 ATC5 各年度金額
+        amt5_2022 = df_product['2022支付金額'].sum()
+        amt5_2023 = df_product['2023支付金額'].sum()
+        amt5_2024 = df_product['2024支付金額'].sum()
+
+        # 計算 ATC4 各年度金額
+        sub_df_atc4 = price_df[price_df['ATC代碼'].str.startswith(atc_code_4)]
+        amt4_2022 = sub_df_atc4.apply(lambda r: calc_annual_payment(price_df, use_2022, r['藥品代號'], 2022)[0], axis=1).sum()
+        amt4_2023 = sub_df_atc4.apply(lambda r: calc_annual_payment(price_df, use_2023, r['藥品代號'], 2023)[0], axis=1).sum()
+        amt4_2024 = sub_df_atc4.apply(lambda r: calc_annual_payment(price_df, use_2024, r['藥品代號'], 2024)[0], axis=1).sum()
+
+        percent_2022 = (amt5_2022 / amt4_2022 * 100) if amt4_2022 else 0
+        percent_2023 = (amt5_2023 / amt4_2023 * 100) if amt4_2023 else 0
+        percent_2024 = (amt5_2024 / amt4_2024 * 100) if amt4_2024 else 0
+
+        result_df = pd.DataFrame({
+            '年度': [2022, 2023, 2024],
+            'ATC5金額': [amt5_2022, amt5_2023, amt5_2024],
+            'ATC4總金額': [amt4_2022, amt4_2023, amt4_2024],
+            '百分比(%)': [percent_2022, percent_2023, percent_2024]
+        })
+        st.dataframe(result_df, use_container_width=True)
+        st.bar_chart(result_df.set_index('年度')[['ATC5金額', 'ATC4總金額']])
