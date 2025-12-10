@@ -3,31 +3,6 @@ import pandas as pd
 import streamlit as st
 from datetime import datetime
 
-# ========== ATC4/ATC5 對照表與查詢函式 ==========
-def try_read_csv(file, encodings=['utf-8-sig', 'utf-8', 'big5', 'cp950']):
-    for enc in encodings:
-        try:
-            df = pd.read_csv(file, encoding=enc)
-            df.columns = df.columns.str.strip()
-            return df
-        except Exception:
-            continue
-    raise ValueError(f"{file} 無法用常見編碼讀取，請確認檔案格式。")
-
-atc4_map = try_read_csv('ATC4_Subclass_Map.csv')
-atc5_map = try_read_csv('ATC5_Ingredient_Map.csv')
-
-def get_atc4_desc(atc4_code):
-    row = atc4_map[atc4_map['ATC4代碼'] == atc4_code]
-    if not row.empty:
-        return row.iloc[0][1]
-    return ''
-
-def get_atc5_desc(atc5_code):
-    row = atc5_map[atc5_map['ATC代碼'] == atc5_code]
-    if not row.empty:
-        return row.iloc[0][1]
-
 def try_read_csv(file, encodings=['utf-8-sig', 'utf-8', 'big5', 'cp950']):
     for enc in encodings:
         try:
@@ -141,11 +116,6 @@ def show_product_tables(sub_df_product, keyword):
         })
     df_product = pd.DataFrame(result_product)
     df_product.index = range(1, len(df_product)+1)
-    
-    if 'ATC代碼' in df.columns:
-        df['ATC4說明'] = df['ATC代碼'].str[:5].apply(get_atc4_desc)
-        df['ATC5說明'] = df['ATC代碼'].apply(get_atc5_desc)
-
     st.subheader(f"{keyword.upper()} 不同規格產品各年度支付金額")
     st.dataframe(df_product[['藥品代號','藥品英文名稱','藥品中文名稱','成分','藥商',
                              '2022支付金額','2023支付金額','2024支付金額']],
@@ -201,9 +171,6 @@ def show_ingredient_tables(sub_df, keyword):
         })
     df = pd.DataFrame(result)
     df.index = range(1, len(df)+1)
-    if 'ATC代碼' in df.columns:
-        df['ATC4說明'] = df['ATC代碼'].str[:5].apply(get_atc4_desc)
-        df['ATC5說明'] = df['ATC代碼'].apply(get_atc5_desc)
     # 表1：各藥品支付金額
     st.subheader("各藥品支付金額")
     st.dataframe(df, use_container_width=True,
@@ -296,9 +263,6 @@ if vendor_keyword:
             })
         df_vendor = pd.DataFrame(result_vendor)
         df_vendor.index = range(1, len(df_vendor)+1)
-        if 'ATC代碼' in df.columns:
-            df['ATC4說明'] = df['ATC代碼'].str[:5].apply(get_atc4_desc)
-            df['ATC5說明'] = df['ATC代碼'].apply(get_atc5_desc)
         st.subheader(f"{vendor_keyword} 各產品各年度支付金額")
         st.dataframe(df_vendor, use_container_width=True,
                      column_config={
