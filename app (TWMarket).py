@@ -338,25 +338,21 @@ st.image("S__38543373.jpg", caption="白六-健保資料查詢小幫手")
 
 
 # === 新增功能：顯示 ATC 第四層類別金額佔比 ===
-if st.checkbox("顯示第四層 ATC 類別金額佔比", value=False):
-    # 取得 ATC code（假設在 sub_df_product 中）
-    if not sub_df_product.empty:
-        atc_code = sub_df_product['ATC代碼'].dropna().iloc[0]
-        atc_prefix = atc_code[:5]  # 前五碼包含第四層字母
-        # 篩選同第四層的藥品
-        sub_df_atc4 = price_df[price_df['ATC代碼'].str.startswith(atc_prefix[:4], na=False)]
 
-        # 計算第四層總金額
+if st.checkbox("顯示第四層 ATC 類別金額佔比", value=False):
+    if not df_product.empty:
+        atc_code = df_product['ATC代碼'].dropna().iloc[0]
+        atc_prefix = atc_code[:4]  # 前四碼代表第四層
+        sub_df_atc4 = price_df[price_df['ATC代碼'].str.startswith(atc_prefix, na=False)]
+
         total_22 = sum(calc_annual_payment(price_df, use_2022, code, 2022)[0] for code in sub_df_atc4['藥品代號'].unique())
         total_23 = sum(calc_annual_payment(price_df, use_2023, code, 2023)[0] for code in sub_df_atc4['藥品代號'].unique())
         total_24 = sum(calc_annual_payment(price_df, use_2024, code, 2024)[0] for code in sub_df_atc4['藥品代號'].unique())
 
-        # 計算目前查詢藥品加總
         current_22 = df_product['2022支付金額'].sum()
         current_23 = df_product['2023支付金額'].sum()
         current_24 = df_product['2024支付金額'].sum()
 
-        # 建立表格
         ratio_df = pd.DataFrame({
             '年度': [2022, 2023, 2024],
             '該藥品金額': [current_22, current_23, current_24],
@@ -368,5 +364,5 @@ if st.checkbox("顯示第四層 ATC 類別金額佔比", value=False):
             ]
         })
 
-        st.subheader(f"ATC 第四層類別金額佔比（{atc_prefix[:4]}）")
+        st.subheader(f"ATC 第四層類別金額佔比（{atc_prefix}）")
         st.dataframe(ratio_df, use_container_width=True)
