@@ -317,10 +317,13 @@ if 'df_product' in locals() and not df_product.empty:
         st.write(f"第五層 ATC Code：{atc_code_5}")
         st.write(f"第四層 ATC Code：{atc_code_4}")
 
-        amt5_2022 = df_product['2022支付金額'].sum()
-        amt5_2023 = df_product['2023支付金額'].sum()
-        amt5_2024 = df_product['2024支付金額'].sum()
+        # 同一 ATC5 所有商品
+        sub_df_atc5 = price_df[price_df['ATC代碼'] == atc_code_5]
+        amt5_2022 = sub_df_atc5.apply(lambda r: calc_annual_payment(price_df, use_2022, r['藥品代號'], 2022)[0], axis=1).sum()
+        amt5_2023 = sub_df_atc5.apply(lambda r: calc_annual_payment(price_df, use_2023, r['藥品代號'], 2023)[0], axis=1).sum()
+        amt5_2024 = sub_df_atc5.apply(lambda r: calc_annual_payment(price_df, use_2024, r['藥品代號'], 2024)[0], axis=1).sum()
 
+        # 同一 ATC4 所有商品
         sub_df_atc4 = price_df[price_df['ATC代碼'].str.startswith(atc_code_4)]
         amt4_2022 = sub_df_atc4.apply(lambda r: calc_annual_payment(price_df, use_2022, r['藥品代號'], 2022)[0], axis=1).sum()
         amt4_2023 = sub_df_atc4.apply(lambda r: calc_annual_payment(price_df, use_2023, r['藥品代號'], 2023)[0], axis=1).sum()
@@ -332,12 +335,12 @@ if 'df_product' in locals() and not df_product.empty:
 
         result_df = pd.DataFrame({
             '年度': [2022, 2023, 2024],
-            'ATC5金額': [amt5_2022, amt5_2023, amt5_2024],
+            'ATC5總金額': [amt5_2022, amt5_2023, amt5_2024],
             'ATC4總金額': [amt4_2022, amt4_2023, amt4_2024],
             '百分比(%)': [percent_2022, percent_2023, percent_2024]
         })
         st.dataframe(result_df, use_container_width=True)
-        st.bar_chart(result_df.set_index('年度')[['ATC5金額', 'ATC4總金額']])
+        st.bar_chart(result_df.set_index('年度')[['ATC5總金額', 'ATC4總金額']])
 
 
 
@@ -351,10 +354,13 @@ if 'sub_df_ingredient' in locals() and not sub_df_ingredient.empty:
         st.write(f"第五層 ATC Code：{atc_code_5}")
         st.write(f"第四層 ATC Code：{atc_code_4}")
 
-        amt5_2022 = sub_df_ingredient.apply(lambda r: calc_annual_payment(price_df, use_2022, r['藥品代號'], 2022)[0], axis=1).sum()
-        amt5_2023 = sub_df_ingredient.apply(lambda r: calc_annual_payment(price_df, use_2023, r['藥品代號'], 2023)[0], axis=1).sum()
-        amt5_2024 = sub_df_ingredient.apply(lambda r: calc_annual_payment(price_df, use_2024, r['藥品代號'], 2024)[0], axis=1).sum()
+        # 同一 ATC5 所有商品
+        sub_df_atc5 = price_df[price_df['ATC代碼'] == atc_code_5]
+        amt5_2022 = sub_df_atc5.apply(lambda r: calc_annual_payment(price_df, use_2022, r['藥品代號'], 2022)[0], axis=1).sum()
+        amt5_2023 = sub_df_atc5.apply(lambda r: calc_annual_payment(price_df, use_2023, r['藥品代號'], 2023)[0], axis=1).sum()
+        amt5_2024 = sub_df_atc5.apply(lambda r: calc_annual_payment(price_df, use_2024, r['藥品代號'], 2024)[0], axis=1).sum()
 
+        # 同一 ATC4 所有商品
         sub_df_atc4 = price_df[price_df['ATC代碼'].str.startswith(atc_code_4)]
         amt4_2022 = sub_df_atc4.apply(lambda r: calc_annual_payment(price_df, use_2022, r['藥品代號'], 2022)[0], axis=1).sum()
         amt4_2023 = sub_df_atc4.apply(lambda r: calc_annual_payment(price_df, use_2023, r['藥品代號'], 2023)[0], axis=1).sum()
@@ -366,9 +372,9 @@ if 'sub_df_ingredient' in locals() and not sub_df_ingredient.empty:
 
         result_df = pd.DataFrame({
             '年度': [2022, 2023, 2024],
-            'ATC5金額': [amt5_2022, amt5_2023, amt5_2024],
+            'ATC5總金額': [amt5_2022, amt5_2023, amt5_2024],
             'ATC4總金額': [amt4_2022, amt4_2023, amt4_2024],
             '百分比(%)': [percent_2022, percent_2023, percent_2024]
         })
         st.dataframe(result_df, use_container_width=True)
-        st.bar_chart(result_df.set_index('年度')[['ATC5金額', 'ATC4總金額']])
+        st.bar_chart(result_df.set_index('年度')[['ATC5總金額', 'ATC4總金額']])
