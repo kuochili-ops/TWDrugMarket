@@ -3,28 +3,6 @@ import pandas as pd
 import streamlit as st
 from datetime import datetime
 
-# 讀取 ATC4 對應分類名稱
-atc4_subclass_df = pd.read_csv('ATC4_Subclass_Map.csv', encoding='utf-8-sig')
-atc4_subclass_df.columns = atc4_subclass_df.columns.str.strip()
-# 請確認這兩個欄位名稱完全正確（可用 print(atc4_subclass_df.columns.tolist()) 檢查）
-atc4_to_subclass = dict(zip(
-    atc4_subclass_df['ATC4代碼'],
-    atc4_subclass_df['化學/藥理學子分類(英文)']
-))
-
-# 讀取 ATC5 對應主成分
-atc5_ingredient_df = pd.read_csv('ATC5_Ingredient_Map.csv', encoding='utf-8-sig')
-atc5_ingredient_df.columns = atc5_ingredient_df.columns.str.strip()
-# 同理，請確認這兩個欄位名稱完全正確
-atc5_to_ingredient = dict(zip(
-    atc5_ingredient_df['ATC代碼'],
-    atc5_ingredient_df['成分']
-))
-
-# 你原本的其他程式碼（如 load_data、主流程等）可直接接在這段之後
-
-
-
 def try_read_csv(file, encodings=['utf-8-sig', 'utf-8', 'big5', 'cp950']):
     for enc in encodings:
         try:
@@ -329,48 +307,40 @@ st.image("S__38543373.jpg", caption="白六-健保資料查詢小幫手")
 
 
 
-# ===== 延伸分析函式 =====
-def show_top_atc5_and_products(atc_code_4):
-    subclass_name = atc4_to_subclass.get(atc_code_4, '')
-    st.subheader(f"該 ATC4 分類 ({atc_code_4} {subclass_name}) 中各年度金額與佔比最高的前三 ATC5")
-    sub_df_atc4 = price_df[price_df['ATC代碼'].str.startswith(atc_code_4)]
-
-    # 計算每個 ATC5 的年度金額
-    atc5_summary = []
-    for atc5, group in sub_df_atc4.groupby('ATC代碼'):
-        amt22 = group.apply(lambda r: calc_annual_payment(price_df, use_2022, r['藥品代號'], 2022)[0], axis=1).sum()
-        amt23 = group.apply(lambda r: calc_annual_payment(price_df, use_2023, r['藥品代號'], 2023)[0], axis=1).sum()
-        amt24 = group.apply(lambda r: calc_annual_payment(price_df, use_2024, r['藥品代號'], 2024)[0], axis=1).sum()
-        ingredient_name = atc5_to_ingredient.get(atc5, '')
-        atc5_summary.append({'ATC5': f"{atc5} {ingredient_name}", '2022': amt22, '2023': amt23, '2024': amt24})
-
-    df_atc5 = pd.DataFrame(atc5_summary)
-    for year in [2022, 2023, 2024]:
-        st.write(f"### {year} 年度 Top 3 ATC5")
-        df_sorted = df_atc5.sort_values(str(year), ascending=False).head(3)
-        st.dataframe(df_sorted)
-
-        # 顯示每個 ATC5 中金額最高的商品
-        for _, row in df_sorted.iterrows():
-            atc5_code = row['ATC5'].split()[0]
-            sub_df_atc5 = sub_df_atc4[sub_df_atc4['ATC代碼'] == atc5_code]
-            sub_df_atc5['年度金額'] = sub_df_atc5.apply(lambda r: calc_annual_payment(price_df, use_2022 if year==2022 else (use_2023 if year==2023 else use_2024), r['藥品代號'], year)[0], axis=1)
-            top_product = sub_df_atc5.sort_values('年度金額', ascending=False).iloc[0]
-            st.write(f"ATC5 {row['ATC5']} 中最高金額商品：{top_product['藥品英文名稱']} ({top_product['藥品代號']})，金額：{top_product['年度金額']:.1f}")
-
-
-
 # ===== 新增功能：ATC 金額占比分析（商品名查詢） =====
 if 'df_product' in locals() and not df_product.empty:
     enable_atc_calc_product = st.checkbox("啟動 ATC 金額占比計算（商品名查詢）")
     if enable_atc_calc_product:
+        st.subheader("ATC 金額占比分析（商品名）")
         atc_code_5 = df_product['ATC代碼'].dropna().iloc[0]
         atc_code_4 = atc_code_5[:5]
-        subclass_name = atc4_to_subclass.get(atc_code_4, '')
-        st.subheader("ATC 金額占比分析（商品名）")
-        st.write(f"第五層 ATC Code：{atc_code_5} {atc5_to_ingredient.get(atc_code_5, '')}")
-        st.write(f"第四層 ATC Code：{atc_code_4} {subclass_name}")
-        show_top_atc5_and_products(atc_code_4)
+        st.write(f"第五層 ATC Code：{atc_code_5}")
+        st.write(f"第四層 ATC Code：{atc_code_4}")
+
+        # 同一 ATC5 所有商品
+        sub_df_atc5 = price_df[price_df['ATC代碼'] == atc_code_5]
+        amt5_2022 = sub_df_atc5.apply(lambda r: calc_annual_payment(price_df, use_2022, r['藥品代號'], 2022)[0], axis=1).sum()
+        amt5_2023 = sub_df_atc5.apply(lambda r: calc_annual_payment(price_df, use_2023, r['藥品代號'], 2023)[0], axis=1).sum()
+        amt5_2024 = sub_df_atc5.apply(lambda r: calc_annual_payment(price_df, use_2024, r['藥品代號'], 2024)[0], axis=1).sum()
+
+        # 同一 ATC4 所有商品
+        sub_df_atc4 = price_df[price_df['ATC代碼'].str.startswith(atc_code_4)]
+        amt4_2022 = sub_df_atc4.apply(lambda r: calc_annual_payment(price_df, use_2022, r['藥品代號'], 2022)[0], axis=1).sum()
+        amt4_2023 = sub_df_atc4.apply(lambda r: calc_annual_payment(price_df, use_2023, r['藥品代號'], 2023)[0], axis=1).sum()
+        amt4_2024 = sub_df_atc4.apply(lambda r: calc_annual_payment(price_df, use_2024, r['藥品代號'], 2024)[0], axis=1).sum()
+
+        percent_2022 = (amt5_2022 / amt4_2022 * 100) if amt4_2022 else 0
+        percent_2023 = (amt5_2023 / amt4_2023 * 100) if amt4_2023 else 0
+        percent_2024 = (amt5_2024 / amt4_2024 * 100) if amt4_2024 else 0
+
+        result_df = pd.DataFrame({
+            '年度': [2022, 2023, 2024],
+            'ATC5總金額': [amt5_2022, amt5_2023, amt5_2024],
+            'ATC4總金額': [amt4_2022, amt4_2023, amt4_2024],
+            '百分比(%)': [percent_2022, percent_2023, percent_2024]
+        })
+        st.dataframe(result_df, use_container_width=True)
+        st.bar_chart(result_df.set_index('年度')[['ATC5總金額', 'ATC4總金額']])
 
 
 
@@ -378,10 +348,33 @@ if 'df_product' in locals() and not df_product.empty:
 if 'sub_df_ingredient' in locals() and not sub_df_ingredient.empty:
     enable_atc_calc_ing = st.checkbox("啟動 ATC 金額占比計算（主成分查詢）")
     if enable_atc_calc_ing:
+        st.subheader("ATC 金額占比分析（主成分）")
         atc_code_5 = sub_df_ingredient['ATC代碼'].dropna().iloc[0]
         atc_code_4 = atc_code_5[:5]
-        subclass_name = atc4_to_subclass.get(atc_code_4, '')
-        st.subheader("ATC 金額占比分析（主成分）")
-        st.write(f"第五層 ATC Code：{atc_code_5} {atc5_to_ingredient.get(atc_code_5, '')}")
-        st.write(f"第四層 ATC Code：{atc_code_4} {subclass_name}")
-        show_top_atc5_and_products(atc_code_4)
+        st.write(f"第五層 ATC Code：{atc_code_5}")
+        st.write(f"第四層 ATC Code：{atc_code_4}")
+
+        # 同一 ATC5 所有商品
+        sub_df_atc5 = price_df[price_df['ATC代碼'] == atc_code_5]
+        amt5_2022 = sub_df_atc5.apply(lambda r: calc_annual_payment(price_df, use_2022, r['藥品代號'], 2022)[0], axis=1).sum()
+        amt5_2023 = sub_df_atc5.apply(lambda r: calc_annual_payment(price_df, use_2023, r['藥品代號'], 2023)[0], axis=1).sum()
+        amt5_2024 = sub_df_atc5.apply(lambda r: calc_annual_payment(price_df, use_2024, r['藥品代號'], 2024)[0], axis=1).sum()
+
+        # 同一 ATC4 所有商品
+        sub_df_atc4 = price_df[price_df['ATC代碼'].str.startswith(atc_code_4)]
+        amt4_2022 = sub_df_atc4.apply(lambda r: calc_annual_payment(price_df, use_2022, r['藥品代號'], 2022)[0], axis=1).sum()
+        amt4_2023 = sub_df_atc4.apply(lambda r: calc_annual_payment(price_df, use_2023, r['藥品代號'], 2023)[0], axis=1).sum()
+        amt4_2024 = sub_df_atc4.apply(lambda r: calc_annual_payment(price_df, use_2024, r['藥品代號'], 2024)[0], axis=1).sum()
+
+        percent_2022 = (amt5_2022 / amt4_2022 * 100) if amt4_2022 else 0
+        percent_2023 = (amt5_2023 / amt4_2023 * 100) if amt4_2023 else 0
+        percent_2024 = (amt5_2024 / amt4_2024 * 100) if amt4_2024 else 0
+
+        result_df = pd.DataFrame({
+            '年度': [2022, 2023, 2024],
+            'ATC5總金額': [amt5_2022, amt5_2023, amt5_2024],
+            'ATC4總金額': [amt4_2022, amt4_2023, amt4_2024],
+            '百分比(%)': [percent_2022, percent_2023, percent_2024]
+        })
+        st.dataframe(result_df, use_container_width=True)
+        st.bar_chart(result_df.set_index('年度')[['ATC5總金額', 'ATC4總金額']])
