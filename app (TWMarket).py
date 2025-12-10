@@ -3,11 +3,26 @@ import pandas as pd
 import streamlit as st
 from datetime import datetime
 
-# 讀取 ATC4/ATC5 對應表
-atc4_subclass_df = pd.read_csv('ATC4_Subclass_Map.csv')
-atc4_to_subclass = dict(zip(atc4_subclass_df['ATC4'], atc4_subclass_df['Subclass']))
+# 讀取 ATC4 對應分類名稱
+atc4_subclass_df = pd.read_csv('ATC4_Subclass_Map.csv', encoding='utf-8-sig')
+atc4_subclass_df.columns = atc4_subclass_df.columns.str.strip()
+# 請確認這兩個欄位名稱完全正確（可用 print(atc4_subclass_df.columns.tolist()) 檢查）
+atc4_to_subclass = dict(zip(
+    atc4_subclass_df['ATC4代碼'],
+    atc4_subclass_df['化學/藥理學子分類(英文)']
+))
 
-atc5_ingredient_df = pd.read_csv('ATC5_Ingredient_Map.csv')
+# 讀取 ATC5 對應主成分
+atc5_ingredient_df = pd.read_csv('ATC5_Ingredient_Map.csv', encoding='utf-8-sig')
+atc5_ingredient_df.columns = atc5_ingredient_df.columns.str.strip()
+# 同理，請確認這兩個欄位名稱完全正確
+atc5_to_ingredient = dict(zip(
+    atc5_ingredient_df['ATC代碼'],
+    atc5_ingredient_df['成分']
+))
+
+# 你原本的其他程式碼（如 load_data、主流程等）可直接接在這段之後
+
 
 
 def try_read_csv(file, encodings=['utf-8-sig', 'utf-8', 'big5', 'cp950']):
