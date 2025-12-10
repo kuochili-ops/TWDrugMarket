@@ -3,6 +3,13 @@ import pandas as pd
 import streamlit as st
 from datetime import datetime
 
+# 讀取 ATC4/ATC5 對應表
+atc4_subclass_df = pd.read_csv('ATC4_Subclass_Map.csv')
+atc4_to_subclass = dict(zip(atc4_subclass_df['ATC4'], atc4_subclass_df['Subclass']))
+
+atc5_ingredient_df = pd.read_csv('ATC5_Ingredient_Map.csv')
+
+
 def try_read_csv(file, encodings=['utf-8-sig', 'utf-8', 'big5', 'cp950']):
     for enc in encodings:
         try:
