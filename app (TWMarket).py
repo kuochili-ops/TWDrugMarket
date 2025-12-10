@@ -339,6 +339,7 @@ st.image("S__38543373.jpg", caption="白六-健保資料查詢小幫手")
 
 # === 新增功能：顯示 ATC 第四層類別金額佔比 ===
 
+
 if st.checkbox("顯示第四層 ATC 類別金額佔比", value=False):
     if not df_product.empty:
         atc_code = df_product['ATC代碼'].dropna().iloc[0]
@@ -366,3 +367,4 @@ if st.checkbox("顯示第四層 ATC 類別金額佔比", value=False):
 
         st.subheader(f"ATC 第四層類別金額佔比（{atc_prefix}）")
         st.dataframe(ratio_df, use_container_width=True)
+
