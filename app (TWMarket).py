@@ -337,36 +337,49 @@ if vendor_keyword:
 st.image("S__38543373.jpg", caption="白六-健保資料查詢小幫手")
 
 
-# === 修正 sub_df_product 初始化 ===
+# === 新增函式：ATC 第四層金額佔比分析 ===
 import pandas as pd
-if 'selected_product' in locals() and 'df' in locals():
-    sub_df_product = df[df['產品名稱'] == selected_product] if selected_product else pd.DataFrame()
-else:
-    sub_df_product = pd.DataFrame()
-
-
-# === 新增功能：ATC 第四層金額佔比查詢 ===
 import streamlit as st
 
-def show_atc4_ratio(price_df):
-    st.header("ATC 第四層金額佔比查詢")
-    atc_code_input = st.text_input("請輸入 ATC 代碼（完整五層，如 N06AX11）")
-    if atc_code_input:
-        atc4_prefix = atc_code_input[:4]
-        df_filtered = price_df.dropna(subset=['ATC代碼']).copy()
-        df_filtered['年份'] = df_filtered['有效起日'].astype(str).str[:3].astype(int) + 1911
-        df_filtered['支付價'] = pd.to_numeric(df_filtered['支付價'], errors='coerce').fillna(0)
+def show_atc4_ratio(price_df, atc_code_input):
+    atc4_prefix = atc_code_input[:4]
+    df_filtered = price_df.dropna(subset=['ATC代碼']).copy()
+    df_filtered['年份'] = df_filtered['有效起日'].astype(str).str[:3].astype(int) + 1911
+    df_filtered['支付價'] = pd.to_numeric(df_filtered['支付價'], errors='coerce').fillna(0)
 
-        # 該藥品年度金額
-        df_target = df_filtered[df_filtered['ATC代碼'] == atc_code_input]
-        target_sum = df_target.groupby('年份')['支付價'].sum().reset_index(name='該藥品金額')
+    # 該藥品年度金額
+    df_target = df_filtered[df_filtered['ATC代碼'] == atc_code_input]
+    target_sum = df_target.groupby('年份')['支付價'].sum().reset_index(name='該藥品金額')
 
-        # 第四層總金額
-        df_atc4 = df_filtered[df_filtered['ATC代碼'].str.startswith(atc4_prefix)]
-        atc4_sum = df_atc4.groupby('年份')['支付價'].sum().reset_index(name='第四層總金額')
+    # 第四層總金額
+    df_atc4 = df_filtered[df_filtered['ATC代碼'].str.startswith(atc4_prefix)]
+    atc4_sum = df_atc4.groupby('年份')['支付價'].sum().reset_index(name='第四層總金額')
 
-        merged = pd.merge(target_sum, atc4_sum, on='年份', how='outer').fillna(0)
-        merged['佔比(%)'] = (merged['該藥品金額'] / merged['第四層總金額'] * 100).round(2)
+    merged = pd.merge(target_sum, atc4_sum, on='年份', how='outer').fillna(0)
+    merged['佔比(%)'] = (merged['該藥品金額'] / merged['第四層總金額'] * 100).round(2)
 
-        st.subheader(f"ATC 第四層類別金額佔比（{atc4_prefix}）")
-        st.dataframe(merged)
+    st.subheader(f"ATC 第四層類別金額佔比（{atc4_prefix}）")
+    st.dataframe(merged)
+
+
+# === 整合邏輯：查詢後啟動 ATC 分析 ===
+price_df = pd.read_csv('Price_ATC.csv')
+
+# 在顯示查詢結果後加入：
+try:
+    if not sub_df_product.empty and 'ATC代碼' in sub_df_product.columns:
+        atc_code = sub_df_product['ATC代碼'].dropna().iloc[0]
+        st.write(f"此查詢對應 ATC 代碼：{atc_code}")
+        if st.checkbox("是否啟動 ATC 第四層金額佔比分析？"):
+            show_atc4_ratio(price_df, atc_code)
+except Exception:
+    pass
+
+try:
+    if 'df' in locals() and not df.empty and 'ATC代碼' in df.columns:
+        atc_code = df['ATC代碼'].dropna().iloc[0]
+        st.write(f"此查詢對應 ATC 代碼：{atc_code}")
+        if st.checkbox("是否啟動 ATC 第四層金額佔比分析？"):
+            show_atc4_ratio(price_df, atc_code)
+except Exception:
+    pass
