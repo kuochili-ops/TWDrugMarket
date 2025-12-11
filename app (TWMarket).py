@@ -307,35 +307,6 @@ st.image("S__38543373.jpg", caption="白六-健保資料查詢小幫手")
 
 
 
-# ===== 延伸分析函式 =====
-def show_top_atc5_and_products(atc_code_4):
-    st.subheader("該 ATC4 分類中各年度金額與佔比最高的前三 ATC5")
-    sub_df_atc4 = price_df[price_df['ATC代碼'].str.startswith(atc_code_4)]
-
-    # 計算每個 ATC5 的年度金額
-    atc5_summary = []
-    for atc5, group in sub_df_atc4.groupby('ATC代碼'):
-        amt22 = group.apply(lambda r: calc_annual_payment(price_df, use_2022, r['藥品代號'], 2022)[0], axis=1).sum()
-        amt23 = group.apply(lambda r: calc_annual_payment(price_df, use_2023, r['藥品代號'], 2023)[0], axis=1).sum()
-        amt24 = group.apply(lambda r: calc_annual_payment(price_df, use_2024, r['藥品代號'], 2024)[0], axis=1).sum()
-        atc5_summary.append({'ATC5': atc5, '2022': amt22, '2023': amt23, '2024': amt24})
-
-    df_atc5 = pd.DataFrame(atc5_summary)
-    for year in [2022, 2023, 2024]:
-        st.write(f"### {year} 年度 Top 3 ATC5")
-        df_sorted = df_atc5.sort_values(str(year), ascending=False).head(3)
-        st.dataframe(df_sorted)
-
-        # 顯示每個 ATC5 中金額最高的商品
-        for _, row in df_sorted.iterrows():
-            atc5_code = row['ATC5']
-            sub_df_atc5 = sub_df_atc4[sub_df_atc4['ATC代碼'] == atc5_code]
-            sub_df_atc5['年度金額'] = sub_df_atc5.apply(lambda r: calc_annual_payment(price_df, use_2022 if year==2022 else (use_2023 if year==2023 else use_2024), r['藥品代號'], year)[0], axis=1)
-            top_product = sub_df_atc5.sort_values('年度金額', ascending=False).iloc[0]
-            st.write(f"ATC5 {atc5_code} 中最高金額商品：{top_product['藥品英文名稱']} ({top_product['藥品代號']})，金額：{top_product['年度金額']:.1f}")
-
-
-
 # ===== 新增功能：ATC 金額占比分析（商品名查詢） =====
 if 'df_product' in locals() and not df_product.empty:
     enable_atc_calc_product = st.checkbox("啟動 ATC 金額占比計算（商品名查詢）")
@@ -370,9 +341,6 @@ if 'df_product' in locals() and not df_product.empty:
         })
         st.dataframe(result_df, use_container_width=True)
         st.bar_chart(result_df.set_index('年度')[['ATC5總金額', 'ATC4總金額']])
-
-        # 顯示 Top 3 ATC5 與最高商品
-        show_top_atc5_and_products(atc_code_4)
 
 
 
@@ -410,6 +378,3 @@ if 'sub_df_ingredient' in locals() and not sub_df_ingredient.empty:
         })
         st.dataframe(result_df, use_container_width=True)
         st.bar_chart(result_df.set_index('年度')[['ATC5總金額', 'ATC4總金額']])
-
-        # 顯示 Top 3 ATC5 與最高商品
-        show_top_atc5_and_products(atc_code_4)
