@@ -236,7 +236,7 @@ if keyword:
             st.warning(f"查無 {keyword} 的成分名或商品名資料")
 
 # ------- 藥商查詢 -------
-vendor_keyword = st.text_input('請輸入藥商名稱查詢（如 台灣羅氏、台灣默沙東等）*Serena 要的  🩷')
+vendor_keyword = st.text_input('請輸入藥商名稱查詢（如 台灣羅氏、台灣默沙東等）*Serena 要的')
 
 if vendor_keyword:
     # 只查藥商欄位
@@ -338,7 +338,7 @@ def show_top_atc5_and_products(atc_code_4):
 
 # ===== 新增功能：ATC 金額占比分析（商品名查詢） =====
 if 'df_product' in locals() and not df_product.empty:
-    enable_atc_calc_product = st.checkbox("啟動 ATC 金額占比計算（商品名查詢）也是 Serena 要的 🩷")
+    enable_atc_calc_product = st.checkbox("啟動 ATC 金額占比計算（商品名查詢）")
     if enable_atc_calc_product:
         st.subheader("ATC 金額占比分析（商品名）")
         atc_code_5 = df_product['ATC代碼'].dropna().iloc[0]
@@ -378,7 +378,7 @@ if 'df_product' in locals() and not df_product.empty:
 
 # ===== 新增功能：ATC 金額占比分析（主成分查詢） =====
 if 'sub_df_ingredient' in locals() and not sub_df_ingredient.empty:
-    enable_atc_calc_ing = st.checkbox("啟動 ATC 金額占比計算（主成分查詢）也是 Serena 要的 🩷")
+    enable_atc_calc_ing = st.checkbox("啟動 ATC 金額占比計算（主成分查詢）")
     if enable_atc_calc_ing:
         st.subheader("ATC 金額占比分析（主成分）")
         atc_code_5 = sub_df_ingredient['ATC代碼'].dropna().iloc[0]
