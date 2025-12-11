@@ -3,6 +3,22 @@ import pandas as pd
 import streamlit as st
 from datetime import datetime
 
+@st.cache_data
+def load_atc4_to_subclass():
+    atc4_df = pd.read_csv('ATC4_Subclass_Map.csv')
+    atc4_df.columns = atc4_df.columns.str.strip()
+    return dict(zip(
+        atc4_df['ATC4代碼'].astype(str).str.strip(),
+        atc4_df['化學/藥理學子分類(英文)'].astype(str).str.strip()
+    ))
+
+atc4_to_subclass = load_atc4_to_subclass()
+
+# 之後在你的主程式或 function 裡直接用
+atc_code_4 = 'N06AX'  # 這是範例，實際請用你的變數
+subclass_name = atc4_to_subclass.get(atc_code_4, '')
+st.write(f"ATC4 {atc_code_4} 的子分類：{subclass_name}")
+
 def try_read_csv(file, encodings=['utf-8-sig', 'utf-8', 'big5', 'cp950']):
     for enc in encodings:
         try:
