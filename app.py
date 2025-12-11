@@ -273,13 +273,14 @@ if keyword:
 
 
 # ===== 商品適應症查詢功能 =====
-if 'df_product' in locals() and not df_product.empty:
-    st.subheader("商品適應症查詢")
-    product_names = df_product['藥品英文名稱'].dropna().unique().tolist()
-    selected_product = st.selectbox("選擇商品以查看適應症：", product_names)
-    if selected_product:
-        indication = indication_map.get(selected_product, "查無適應症資料")
-        st.write(f"**{selected_product}** 的適應症：{indication}")
+
+with st.expander("商品適應症查詢", expanded=False):
+    if 'df_product' in locals() and not df_product.empty:
+        product_names = df_product['藥品英文名稱'].dropna().unique().tolist()
+        selected_product = st.selectbox("選擇商品以查看適應症：", product_names)
+        if selected_product:
+            indication = indication_map.get(selected_product, "查無適應症資料")
+            st.write(f"**{selected_product}** 的適應症：{indication}")
 
 # ------- 藥商查詢 -------
 vendor_keyword = st.text_input('請輸入藥商名稱查詢（如 台灣羅氏、台灣默沙東等）*Serena 要的')
