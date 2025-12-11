@@ -14,6 +14,16 @@ def load_atc4_to_subclass():
 
 atc4_to_subclass = load_atc4_to_subclass()
 
+def load_atc5_to_ingredient():
+    atc5_df = pd.read_csv('ATC5_Ingredient_Map.csv')
+    atc5_df.columns = atc5_df.columns.str.strip()
+    return dict(zip(
+        atc5_df['ATC代碼'].astype(str).str.strip(),
+        atc5_df['成分'].astype(str).str.strip()
+    ))
+
+atc5_to_ingredient = load_atc5_to_ingredient()
+
 # 之後在你的主程式或 function 裡直接用
 atc_code_4 = 'N06AX'  # 這是範例，實際請用你的變數
 subclass_name = atc4_to_subclass.get(atc_code_4, '')
