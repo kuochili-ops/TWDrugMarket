@@ -48,15 +48,18 @@ def get_longest_price(price_df, code, year):
     start = datetime(year, 1, 1)
     end = datetime(year, 12, 31)
     
+    # 篩選在該年度有效的價格
     df = df[((df['起'] <= end) & (df['迄'] >= start)) | (df['起'].isnull() & df['迄'].isnull())].copy()
     
     if df.empty:
         return 0, 'N/A'
     
+    # 計算該價格在該年度的有效天數
     df['Effective_Start'] = df['起'].apply(lambda x: max(x, start) if pd.notna(x) else start)
     df['Effective_End'] = df['迄'].apply(lambda x: min(x, end) if pd.notna(x) else end)
     df['Days'] = (df['Effective_End'] - df['Effective_Start']).dt.days + 1
     
+    # 取得天數最長的價格紀錄
     longest_record = df.sort_values(by='Days', ascending=False).iloc[0]
     
     return longest_record['支付價'], longest_record['藥品中文名稱']
@@ -70,13 +73,14 @@ def calc_annual_payment(price_df, use_df, code, year):
         usage_record = use_df[use_df['藥品代碼'] == code]
         
         if not usage_record.empty:
+            # 取得醫令量_合計 (用 .iloc[0] 避免 Series)
             total_usage = usage_record['醫令量_合計'].iloc[0]
             total_payment = price * total_usage
             return total_payment, cname
     
     return 0, cname
 
-# --- 【新增】載入所有數據 (包含 37_2.csv) ---
+# --- 載入所有數據 (包含 37_2.csv) ---
 
 @st.cache_data
 def load_data():
@@ -92,12 +96,11 @@ def load_data():
     price_df['ATC代碼_5碼'] = price_df['ATC代碼'].str[:5] 
     
     # 3. 載入使用量數據
-    # 請確保這些檔案與 app.py 位於相同目錄
     use_2022 = try_read_csv("A21030000I-E41005-001 (2022).csv")
     use_2023 = try_read_csv("A21030000I-E41005-002 (2023).csv")
     use_2024 = try_read_csv("A21030000I-E41005-003 (2024).csv")
 
-    # 4. 載入適應症數據 (37_2.csv) 【新增】
+    # 4. 載入適應症數據 (37_2.csv)
     indications_df = try_read_csv("37_2.csv")
     indications_df.columns = indications_df.columns.str.strip()
     
@@ -106,111 +109,123 @@ def load_data():
 
     return price_df, use_2022, use_2023, use_2024, indications_df
 
-# --- 【新增】適應症查詢函式 (滿足所有需求) ---
+# --- 適應症查詢函式 (新增) ---
 
 def get_indication_by_chinese_name(chinese_name, indications_df):
-    """
-    依據【藥品中文名稱】查詢適應症。
-    用於需求 2 (主成分最高支付) 和需求 3 (商品名搜尋)。
-    """
-    if not isinstance(chinese_name, str):
-        return "無資料"
+    """依據【藥品中文名稱】查詢適應症。"""
+    if not isinstance(chinese_name, str): return "無資料"
     
-    # 清理並過濾
-    # 注意：'中文品名' 在 37_2.csv 中的欄位名稱為 '中文品名'
     result = indications_df[indications_df['中文品名'].str.strip() == chinese_name.strip()]
     
     if not result.empty:
-        # 將所有查到的適應症以 HTML 換行符 <br> 分隔
         return "<br>".join(result['適應症'].unique().tolist())
     
     return "適應症資料庫無此品項 (中文名)"
 
 def get_indication_by_english_name(english_name, indications_df):
-    """
-    依據【藥品英文名稱】查詢適應症。
-    用於需求 1 (個別品項)。
-    """
-    if not isinstance(english_name, str):
-        return "無資料"
+    """依據【藥品英文名稱】查詢適應症。"""
+    if not isinstance(english_name, str): return "無資料"
     
-    # 清理並過濾 (不區分大小寫)
-    # 注意：'英文品名' 在 37_2.csv 中的欄位名稱為 '英文品名'
     result = indications_df[indications_df['英文品名'].str.strip().str.upper() == english_name.strip().upper()]
     
     if not result.empty:
-        # 將所有查到的適應症以 HTML 換行符 <br> 分隔
         return "<br>".join(result['適應症'].unique().tolist())
     
     return "適應症資料庫無此品項 (英文名)"
 
 
-# --- Main Streamlit App Logic (全域變數和主要流程) ---
+# --- Main Streamlit App Logic ---
 
 st.set_page_config(layout="wide")
 st.title("藥品市場分析工具 (TW Market Analysis)")
 
-# 載入所有數據 【修改：將所有檔案載入集中到 load_data】
+# 載入所有數據
 try:
     price_df, use_2022, use_2023, use_2024, indications_df = load_data()
 except Exception as e:
-    st.error(f"數據載入失敗，請確認所有 CSV 檔案（Price_ATC1.csv, Price_ATC2.csv, A21030000I-E41005-00x.csv, 37_2.csv）是否與 app.py 放在同一目錄且編碼正確。錯誤訊息: {e}")
+    st.error(f"數據載入失敗，請確認所有 CSV 檔案是否與 app.py 放在同一目錄且編碼正確。錯誤訊息: {e}")
     st.stop()
 
 
 # 側邊欄輸入 (沿用您的原有邏輯)
-atc_code_5 = st.sidebar.text_input('ATC 5碼', 'N05AH') # 範例 ATC 5碼
-drug_code = st.sidebar.text_input('藥品代號', 'AC52617100') # 範例 藥品代號
-
+atc_code_5 = st.sidebar.text_input('ATC 5碼', 'N05AH03') # 使用一個完整的範例
+drug_code = st.sidebar.text_input('藥品代號', 'AC52617100') 
 
 # ----------------------------------------------------------------------
-# 主成分搜尋結果 (實作 需求 2)
+# 主成分搜尋結果 (還原原有功能 + 實作 需求 2)
 # ----------------------------------------------------------------------
 
-# 篩選 ATC 5碼
-sub_df_atc5 = price_df[price_df['ATC代碼_5碼'] == atc_code_5].copy()
-# 移除重複的藥品代號，保留最新生效的價格
-sub_df_atc5 = sub_df_atc5.sort_values(by='起', ascending=False).drop_duplicates(subset=['藥品代號'], keep='first')
+if len(atc_code_5) >= 5:
+    atc_code_4 = atc_code_5[:4] # 取得 ATC 4碼
 
-if not sub_df_atc5.empty:
     st.markdown(f"## 主成分搜尋結果 - 同規格藥品比較 (ATC {atc_code_5})")
     
-    # 1. 計算同規格藥品中各年度加總支付金額 (沿用您的原有邏輯)
-    
-    # 建立計算總金額的欄位
-    sub_df_atc5['總加總支付金額'] = 0.0
-    
-    # 年度列表 for loop
-    years = [2022, 2023, 2024]
-    use_dfs = {2022: use_2022, 2023: use_2023, 2024: use_2024}
-    
-    # 計算每個藥品代號的總支付金額
-    for code in sub_df_atc5['藥品代號'].unique():
-        total_payment = 0
-        for year in years:
-            payment, _ = calc_annual_payment(price_df, use_dfs[year], code, year)
-            total_payment += payment
-        sub_df_atc5.loc[sub_df_atc5['藥品代號'] == code, '總加總支付金額'] = total_payment
+    # 篩選 ATC 5碼
+    sub_df_atc5 = price_df[price_df['ATC代碼_5碼'] == atc_code_5].copy()
+    # 移除重複的藥品代號，保留最新生效的價格，以便計算總支付金額
+    sub_df_atc5 = sub_df_atc5.sort_values(by='起', ascending=False).drop_duplicates(subset=['藥品代號'], keep='first')
 
-    # 2. 找出加總支付金額最高者，取得其中文名稱
-    if sub_df_atc5['總加總支付金額'].max() > 0:
-        max_payment_drug = sub_df_atc5.loc[sub_df_atc5['總加總支付金額'].idxmax()]
-        highest_paid_chinese_name = max_payment_drug['藥品中文名稱']
+    if not sub_df_atc5.empty:
+        
+        # 1. 計算同規格藥品中各年度加總支付金額 (沿用您的原有邏輯)
+        years = [2022, 2023, 2024]
+        use_dfs = {2022: use_2022, 2023: use_2023, 2024: use_2024}
+        
+        # 計算每個藥品代號的總支付金額 (跨年度總和)
+        sub_df_atc5['總加總支付金額'] = sub_df_atc5['藥品代號'].apply(
+            lambda code: sum(calc_annual_payment(price_df, use_dfs[year], code, year)[0] for year in years)
+        )
+        
+        # 2. 找出加總支付金額最高者，取得其中文名稱
+        if sub_df_atc5['總加總支付金額'].max() > 0:
+            max_payment_drug = sub_df_atc5.loc[sub_df_atc5['總加總支付金額'].idxmax()]
+            highest_paid_chinese_name = max_payment_drug['藥品中文名稱']
+        else:
+            highest_paid_chinese_name = "N/A"
+        
+        # 3. 以其中文名稱查詢適應症 【新增】
+        indication_for_main_component = get_indication_by_chinese_name(highest_paid_chinese_name, indications_df)
+        
+        # 4. 在「同規格藥品各年度加總支付金額」表頭後新增「適應症」收合欄位 (依需求 2) 【新增】
+        st.markdown("#### 同規格藥品各年度加總支付金額") 
+        with st.expander(f"適應症 (以金額最高者: **{highest_paid_chinese_name}** 查詢)"):
+            st.markdown(indication_for_main_component, unsafe_allow_html=True)
+        
+        # 顯示結果表
+        st.dataframe(sub_df_atc5[['藥品代號', '藥品中文名稱', '總加總支付金額']].sort_values(by='總加總支付金額', ascending=False), 
+                    hide_index=True, 
+                    column_config={"總加總支付金額": st.column_config.NumberColumn(format="%.2f")})
+
+        
+        # ----------------------------------------------------------------------
+        # 【還原】: 整個 ATC 4碼 的市場總結 (還原原有功能)
+        # ----------------------------------------------------------------------
+        
+        st.markdown("---")
+        st.markdown(f"#### 整個 ATC 4 碼 ({atc_code_4}) 的市場總結")
+        
+        # 篩選 ATC 4碼 (確保只計算一次)
+        sub_df_atc4 = price_df[price_df['ATC代碼'].str.startswith(atc_code_4)].drop_duplicates(subset=['藥品代號'], keep='first').copy()
+        
+        # 計算各年度的總支付金額
+        total_payments_atc4 = {}
+        for year in years:
+            # 計算該年度所有 ATC 4 藥品的總支付金額
+            annual_payment = sub_df_atc4.apply(
+                lambda r: calc_annual_payment(price_df, use_dfs[year], r['藥品代號'], year)[0], axis=1
+            ).sum()
+            total_payments_atc4[year] = annual_payment
+
+        # 顯示總結表
+        summary_data = {
+            '年份': years,
+            '加總支付金額': [total_payments_atc4[y] for y in years]
+        }
+        
+        st.dataframe(pd.DataFrame(summary_data), hide_index=True, 
+                    column_config={"加總支付金額": st.column_config.NumberColumn(format="%.2f")})
     else:
-        highest_paid_chinese_name = "N/A"
-    
-    # 3. 以其 藥品中文名稱 查詢 適應症 【新增】
-    indication_for_main_component = get_indication_by_chinese_name(highest_paid_chinese_name, indications_df)
-    
-    # 4. 在「同規格藥品各年度加總支付金額」表頭後新增「適應症」收合欄位 (依需求 2) 【新增】
-    st.markdown("#### 同規格藥品各年度加總支付金額") 
-    with st.expander(f"適應症 (以金額最高者: **{highest_paid_chinese_name}** 查詢)"):
-        # 使用 markdown 和 unsafe_allow_html=True 實現換行顯示
-        st.markdown(indication_for_main_component, unsafe_allow_html=True)
-    
-    # 顯示結果表
-    st.dataframe(sub_df_atc5[['藥品代號', '藥品中文名稱', '總加總支付金額']].sort_values(by='總加總支付金額', ascending=False), 
-                 hide_index=True)
+        st.warning(f"在 {atc_code_5} 找不到藥品代號。")
 
 
 # ----------------------------------------------------------------------
@@ -231,9 +246,7 @@ if not target_df.empty:
     # 1. 以其 藥品中文名稱 查詢 適應症 (需求 3: 商品名搜尋) 【新增】
     indication_for_trade_name = get_indication_by_chinese_name(target_chinese_name, indications_df)
     
-    # 2. 顯示表格 (各時間階段藥價調整與調整率)
-    
-    # 3. 在「各商品 (藥品代號) 之 各時間階段藥價調整與調整率」表頭後新增「適應症」收合欄位 (依需求 3) 【新增】
+    # 2. 在「各商品 (藥品代號) 之 各時間階段藥價調整與調整率」表頭後新增「適應症」收合欄位 (依需求 3) 【新增】
     st.markdown("#### 各商品 (藥品代號) 之 各時間階段藥價調整與調整率") 
     
     with st.expander(f"適應症 (以中文名: **{target_chinese_name}** 查詢)"):
@@ -243,22 +256,28 @@ if not target_df.empty:
     price_adjustment_df = target_df[['有效起日', '有效迄日', '支付價']].sort_values(by='有效起日').copy()
     
     # 計算調整率
-    price_adjustment_df['調整率'] = price_adjustment_df['支付價'].pct_change().fillna(0).map(lambda x: f"{x:.2%}")
+    price_adjustment_df['調整率'] = price_adjustment_df['支付價'].pct_change().fillna(0)
     
     price_adjustment_df.rename(columns={'支付價': '支付價格', '調整率': '價格調整率'}, inplace=True)
     
-    st.dataframe(price_adjustment_df[['有效起日', '有效迄日', '支付價格', '價格調整率']], hide_index=True)
+    st.dataframe(price_adjustment_df[['有效起日', '有效迄日', '支付價格', '價格調整率']], hide_index=True,
+                 column_config={
+                     "支付價格": st.column_config.NumberColumn(format="%.2f"),
+                     "價格調整率": st.column_config.NumberColumn(format="%.2%")
+                 })
 
     
     # ----------------------------------------------------------------------
-    # 額外滿足：個別品項的英文名查詢 (實作 需求 1)
+    # 額外滿足：個別品項的英文名查詢 (實作 需求 1) 【新增】
     # ----------------------------------------------------------------------
-    # 當查詢結果的主題出現個別品項時，以該品項英文名查詢
     st.markdown("---")
     st.markdown("#### 額外資訊: 個別品項適應症 (英文名查詢)")
     
-    # 查詢該品項的適應症 (依需求 1: 以英文名查詢) 【新增】
+    # 查詢該品項的適應症 (依需求 1: 以英文名查詢)
     indication_for_individual_item = get_indication_by_english_name(target_english_name, indications_df)
 
     with st.expander(f"適應症 (以英文名: *{target_english_name}* 查詢)"):
         st.markdown(indication_for_individual_item, unsafe_allow_html=True)
+else:
+    if drug_code:
+        st.warning(f"在藥價資料中找不到藥品代號: {drug_code}。")
