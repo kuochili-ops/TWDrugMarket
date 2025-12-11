@@ -84,18 +84,6 @@ def load_data():
     use_2024.columns = use_2024.columns.str.strip()
     return price_df, use_2022, use_2023, use_2024
 
-# 初始化 ATC 對應表
-atc5_to_ingredient = price_df.groupby('ATC代碼')['成分'].apply(lambda x: x.dropna().iloc[0] if not x.dropna().empty else '').to_dict()
-
-atc4_to_subclass = {}
-for _, row in price_df.iterrows():
-    atc_code = str(row['ATC代碼']).strip()
-    if len(atc_code) >= 5:
-        atc4 = atc_code[:5]
-        subclass = str(row['分類分組名稱']).strip() if pd.notna(row['分類分組名稱']) else ''
-        if atc4 not in atc4_to_subclass and subclass:
-            atc4_to_subclass[atc4] = subclass
-
 try:
     price_df, use_2022, use_2023, use_2024 = load_data()
 except Exception as e:
