@@ -3,6 +3,14 @@ import pandas as pd
 import streamlit as st
 from datetime import datetime
 
+# 讀取適應症資料
+indication_df = pd.read_csv('37_2.csv')
+indication_df.columns = indication_df.columns.str.strip()
+indication_map = dict(zip(
+    indication_df['英文品名'].astype(str).str.strip(),
+    indication_df['適應症'].astype(str).str.strip()
+))
+
 @st.cache_data
 def load_atc4_to_subclass():
     atc4_df = pd.read_csv('ATC4_Subclass_Map.csv')
@@ -260,6 +268,14 @@ if keyword:
                         st.warning(f"查無成分「{ingredient_name}」的資料")
         else:
             st.warning(f"查無 {keyword} 的成分名或商品名資料")
+
+# ===== 商品適應症查詢功能 =====
+if 'df_product' in locals() and not df_product.empty:
+    st.subheader("商品適應症查詢")
+    product_names = df_product['藥品英文名稱'].dropna().unique().tolist()
+    selected_product = st.selectbox("選擇商品以查看適應症：", product_names)
+    if selected_product:
+        indication = indication_map.get(selected_product, "查無適應症資料")
 
 # ------- 藥商查詢 -------
 vendor_keyword = st.text_input('請輸入藥商名稱查詢（如 台灣羅氏、台灣默沙東等）*')
