@@ -1,4 +1,4 @@
-import pandas as pd
+同 ATC5 商品import pandas as pd
 import streamlit as st
 from datetime import datetime
 import numpy as np 
@@ -317,7 +317,7 @@ with st.expander("商品適應症查詢", expanded=False):
             st.markdown(indication.replace('\n', '<br>'), unsafe_allow_html=True)
 
 # ------- 藥商查詢 (保持不變) -------
-vendor_keyword = st.text_input('請輸入藥商名稱查詢（如 台灣羅氏、台灣默沙東等）*Serena 要的💜')
+vendor_keyword = st.text_input('請輸入藥商名稱查詢（如 台灣羅氏、台灣默沙東等）*Serena 要的')
 
 if vendor_keyword:
     sub_df_vendor = price_df[price_df['藥商'].str.contains(vendor_keyword, case=False, na=False)]
@@ -432,6 +432,7 @@ def show_top_atc5_and_products(atc_code_4):
             # 使用 7 碼 ATC5 欄位進行篩選
             sub_df_atc5_products = sub_df_atc4[sub_df_atc4['ATC5'] == atc5_code].copy()
             
+            # 計算該 ATC5 下所有商品的年度金額
             sub_df_atc5_products['年度金額'] = sub_df_atc5_products.apply(
                 lambda r: calc_annual_payment(price_df, use_2022 if year==2022 else (use_2023 if year==2023 else use_2024), r['藥品代號'], year)[0], axis=1
             )
@@ -440,10 +441,10 @@ def show_top_atc5_and_products(atc_code_4):
                 # 找到該 ATC5 下總金額 (用於計算單一商品佔比的分母)
                 total_atc5_amt = sub_df_atc5_products['年度金額'].sum()
                 
-                # 找到該 ATC5 下最高金額的單一商品
+                # 🚨 關鍵修正：找到該 ATC5 下『金額最高的單一商品』
                 top_product_row = sub_df_atc5_products.sort_values('年度金額', ascending=False).iloc[0]
                 
-                # 🚨 單一商品在 ATC5 佔比計算：單一商品金額 / ATC5 總金額
+                # 計算單一商品在 ATC5 佔比：單一商品金額 / ATC5 總金額
                 product_share = (top_product_row['年度金額'] / total_atc5_amt * 100) if total_atc5_amt > 0 else 0
                 
                 # 輸出加入單一商品在 ATC5 的佔比
