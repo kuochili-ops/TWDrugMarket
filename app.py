@@ -133,7 +133,7 @@ def load_main_data():
     
     price_df['ATC代碼'] = price_df['ATC代碼'].astype(str).str.strip().fillna('')
     
-    # 🚨 修正邏輯：ATC5 (化學物質/成分) = 7 碼；ATC4 (子分類) = 5 碼
+    # 最終確認邏輯：ATC5 (成分) = 7 碼；ATC4 (子分類) = 5 碼
     price_df['ATC5'] = price_df['ATC代碼'].str[:7] 
     price_df['ATC4'] = price_df['ATC代碼'].str[:5] 
     
@@ -388,11 +388,11 @@ def show_top_atc5_and_products(atc_code_4):
     subclass_name = atc4_to_subclass.get(atc_code_4, '')
     st.subheader(f"該 ATC4 分類 ({atc_code_4} {subclass_name}) 中各年度金額與佔比最高的前三 ATC5")
     
-    # 使用 5 碼 ATC4 欄位進行篩選
+    # 使用 5 碼 ATC4 欄位進行篩選 (分母：同 ATC4 的所有商品總金額)
     sub_df_atc4 = price_df[price_df['ATC4'] == atc_code_4].copy()
 
     atc5_summary = []
-    # 使用 7 碼 ATC5 欄位進行分組
+    # 使用 7 碼 ATC5 欄位進行分組 (分子：單一 ATC5 的總金額)
     for atc5, group in sub_df_atc4.groupby('ATC5'):
         # 檢查 ATC5 是否為 7 碼，避免短碼造成錯誤
         if len(atc5) != 7: continue 
@@ -414,10 +414,12 @@ def show_top_atc5_and_products(atc_code_4):
         year_col = f'{year}支付金額'
         st.write(f"### {year} 年度 Top 3 ATC5")
         
-        total_amt = df_atc5[year_col].sum()
+        total_amt_atc4 = df_atc5[year_col].sum() # 總分母金額
         
         df_sorted = df_atc5.sort_values(year_col, ascending=False).head(3).copy()
-        df_sorted[f'{year}佔比(%)'] = (df_sorted[year_col] / total_amt * 100).round(2)
+        
+        # 🚨 ATC5 佔比計算：該 ATC5 金額 / ATC4 總金額
+        df_sorted[f'{year}佔比(%)'] = (df_sorted[year_col] / total_amt_atc4 * 100).round(2)
         
         st.dataframe(df_sorted.rename(columns={year_col: f'{year}金額'}), 
                      column_config={
@@ -435,8 +437,21 @@ def show_top_atc5_and_products(atc_code_4):
             )
             
             if not sub_df_atc5_products.empty:
+                # 找到該 ATC5 下總金額 (用於計算單一商品佔比的分母)
+                total_atc5_amt = sub_df_atc5_products['年度金額'].sum()
+                
+                # 找到該 ATC5 下最高金額的單一商品
                 top_product_row = sub_df_atc5_products.sort_values('年度金額', ascending=False).iloc[0]
-                st.write(f"**ATC5 {atc5_code}** 中最高金額商品：{top_product_row['藥品英文名稱']} ({top_product_row['藥品代號']})，金額：**{top_product_row['年度金額']:.1f}** 元")
+                
+                # 🚨 單一商品在 ATC5 佔比計算：單一商品金額 / ATC5 總金額
+                product_share = (top_product_row['年度金額'] / total_atc5_amt * 100) if total_atc5_amt > 0 else 0
+                
+                # 輸出加入單一商品在 ATC5 的佔比
+                st.write(
+                    f"**ATC5 {atc5_code}** 中最高金額商品：{top_product_row['藥品英文名稱']} ({top_product_row['藥品代號']})，"
+                    f"金額：**{top_product_row['年度金額']:.1f}** 元，"
+                    f"佔 ATC5 總金額：**{product_share:.2f}%**"
+                )
             else:
                 st.write(f"**ATC5 {atc5_code}** 查無 {year} 年度支付資料。")
 
