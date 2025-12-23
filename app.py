@@ -2,7 +2,6 @@
 import pandas as pd
 import streamlit as st
 from datetime import datetime
-import numpy as np
 
 # 讀取適應症資料
 indication_df = pd.read_csv('37_2.csv')
@@ -43,31 +42,21 @@ def parse_roc_date(s):
         return None
 
 @st.cache_data
-def load_atc4_to_subclass():
-    try:
-        atc4_df = try_read_csv('ATC4_Subclass_Map.csv')
-        return dict(zip(
-            atc4_df['ATC4代碼'].astype(str).str.strip().str[:5],
-            atc4_df['化學/藥理學子分類(英文)'].astype(str).str.strip()
-        ))
-    except Exception:
-        st.error("ATC4_Subclass_Map.csv 載入失敗，將使用空白字典。")
-        return {}
-
-@st.cache_data
-def load_atc5_to_ingredient():
-    try:
-        atc5_df = try_read_csv('ATC5_Ingredient_Map.csv')
-        return dict(zip(
-            atc5_df['ATC代碼'].astype(str).str.strip().str[:7],
-            atc5_df['成分'].astype(str).str.strip()
-        ))
-    except Exception:
-        st.error("ATC5_Ingredient_Map.csv 載入失敗，將使用空白字典。")
-        return {}
-
-atc4_to_subclass = load_atc4_to_subclass()
-atc5_to_ingredient = load_atc5_to_ingredient()
+def load_main_data():
+    price1 = try_read_csv('Price_ATC1.csv')
+    price2 = try_read_csv('Price_ATC2.csv')
+    price_df = pd.concat([price1, price2], ignore_index=True)
+    price_df['ATC代碼'] = price_df['ATC代碼'].astype(str).str.strip().fillna('')
+    price_df['ATC5'] = price_df['ATC代碼'].str[:7]
+    price_df['ATC4'] = price_df['ATC代碼'].str[:5]
+    use_2022 = try_read_csv('A21030000I-E41005-001 (2022).csv')
+    use_2023 = try_read_csv('A21030000I-E41005-002 (2023).csv')
+    use_2024 = try_read_csv('A21030000I-E41005-003 (2024).csv')
+    price_df.columns = price_df.columns.str.strip()
+    use_2022.columns = use_2022.columns.str.strip()
+    use_2023.columns = use_2023.columns.str.strip()
+    use_2024.columns = use_2024.columns.str.strip()
+    return price_df, use_2022, use_2023, use_2024
 
 def get_longest_price(price_df, code, year):
     df = price_df[price_df['藥品代號'] == code].copy()
@@ -107,23 +96,6 @@ def calc_annual_payment(price_df, use_df, code, year):
         qty = 0.0
     amt = price * qty
     return amt, price, qty
-
-@st.cache_data
-def load_main_data():
-    price1 = try_read_csv('Price_ATC1.csv')
-    price2 = try_read_csv('Price_ATC2.csv')
-    price_df = pd.concat([price1, price2], ignore_index=True)
-    price_df['ATC代碼'] = price_df['ATC代碼'].astype(str).str.strip().fillna('')
-    price_df['ATC5'] = price_df['ATC代碼'].str[:7]
-    price_df['ATC4'] = price_df['ATC代碼'].str[:5]
-    use_2022 = try_read_csv('A21030000I-E41005-001 (2022).csv')
-    use_2023 = try_read_csv('A21030000I-E41005-002 (2023).csv')
-    use_2024 = try_read_csv('A21030000I-E41005-003 (2024).csv')
-    price_df.columns = price_df.columns.str.strip()
-    use_2022.columns = use_2022.columns.str.strip()
-    use_2023.columns = use_2023.columns.str.strip()
-    use_2024.columns = use_2024.columns.str.strip()
-    return price_df, use_2022, use_2023, use_2024
 
 def show_product_tables(sub_df_product, keyword):
     result_product = []
@@ -244,6 +216,134 @@ except Exception as e:
     st.error(f"資料讀取失敗，請確認檔案存在且編碼正確。錯誤訊息：{e}")
     st.stop()
 
+# ------- 主成分/商品名查詢 -------
+df_product = pd.DataFrame()
+sub_df_ingredient = pd.DataFrame()
+df_ingredient_table = pd.DataFrame()
+keyword = st.text_input('請輸入主成分或商品英文名稱（如 VENLAFAXINE 或 ARCOXIA）')
+if keyword:
+    sub_df_ingredient = price_df[price_df['成分'].str.contains(keyword, case=False, na=False)].copy()
+    if not sub_df_ingredient.empty:
+        df_ingredient_table = show_ingredient_tables(sub_df_ingredient, keyword)
+        product_options = sub_df_ingredient['藥品英文名稱'] + " (" + sub_df_ingredient['藥品代號'] + ")"
+        selected_product = st.selectbox("選擇要顯示藥價調整的藥品：", product_options, key="ingredient_price_select")
+        if selected_product:
+            selected_code = selected_product.split('(')[-1].replace(')', '').strip()
+            df_price = price_df[price_df['藥品代號'] == selected_code].copy()
+            df_price['起'] = df_price['有效起日'].apply(parse_roc_date)
+            df_price['迄'] = df_price['有效迄日'].apply(parse_roc_date)
+            df_price['支付價'] = pd.to_numeric(df_price['支付價'], errors='coerce')
+            df_price = df_price.sort_values('起')
+            df_price['調整率'] = df_price['支付價'].pct_change().fillna(0) * 100
+            st.subheader(f"{selected_product} 各時間階段藥價調整與調整率")
+            st.dataframe(df_price[['起','迄','支付價','調整率']],
+                use_container_width=True,
+                column_config={
+                    "支付價": st.column_config.NumberColumn("支付價", format="%.2f"),
+                    "調整率": st.column_config.NumberColumn("調整率 (%)", format="%.2f"),
+                }
+            )
+    else:
+        sub_df_product = price_df[price_df['藥品英文名稱'].str.contains(keyword, case=False, na=False)].copy()
+        if not sub_df_product.empty:
+            df_product = show_product_tables(sub_df_product, keyword)
+            ingredient_list = df_product['成分'].dropna().unique().tolist()
+            if ingredient_list:
+                if len(ingredient_list) == 1:
+                    ingredient_name = ingredient_list[0]
+                else:
+                    ingredient_name = st.selectbox("此商品包含多個成分，請選擇要查詢的成分：", ingredient_list, key="select_ing_1")
+                if st.button(f"是否要以成分「{ingredient_name}」進行查詢？", key="atc_search_button"):
+                    sub_df_ingredient = price_df[price_df['成分'].str.contains(ingredient_name, case=False, na=False)].copy()
+                    if not sub_df_ingredient.empty:
+                        df_ingredient_table = show_ingredient_tables(sub_df_ingredient, ingredient_name)
+                        product_options = sub_df_ingredient['藥品英文名稱'] + " (" + sub_df_ingredient['藥品代號'] + ")"
+                        selected_product = st.selectbox("選擇要顯示藥價調整的藥品：", product_options, key="ingredient_price_select2")
+                        if selected_product:
+                            selected_code = selected_product.split('(')[-1].replace(')', '').strip()
+                            df_price = price_df[price_df['藥品代號'] == selected_code].copy()
+                            df_price['起'] = df_price['有效起日'].apply(parse_roc_date)
+                            df_price['迄'] = df_price['有效迄日'].apply(parse_roc_date)
+                            df_price['支付價'] = pd.to_numeric(df_price['支付價'], errors='coerce')
+                            df_price = df_price.sort_values('起')
+                            df_price['調整率'] = df_price['支付價'].pct_change().fillna(0) * 100
+                            st.subheader(f"{selected_product} 各時間階段藥價調整與調整率")
+                            st.dataframe(df_price[['起','迄','支付價','調整率']],
+                                use_container_width=True,
+                                column_config={
+                                    "支付價": st.column_config.NumberColumn("支付價", format="%.2f"),
+                                    "調整率": st.column_config.NumberColumn("調整率 (%)", format="%.2f"),
+                                }
+                            )
+                    else:
+                        st.warning(f"查無成分「{ingredient_name}」的資料")
+            else:
+                st.warning(f"查無 {keyword} 的成分名或商品名資料")
+
+
+# ------- 主成分/商品名查詢 -------
+df_product = pd.DataFrame()
+sub_df_ingredient = pd.DataFrame()
+df_ingredient_table = pd.DataFrame()
+keyword = st.text_input('請輸入主成分或商品英文名稱（如 VENLAFAXINE 或 ARCOXIA）')
+if keyword:
+    sub_df_ingredient = price_df[price_df['成分'].str.contains(keyword, case=False, na=False)].copy()
+    if not sub_df_ingredient.empty:
+        df_ingredient_table = show_ingredient_tables(sub_df_ingredient, keyword)
+        product_options = sub_df_ingredient['藥品英文名稱'] + " (" + sub_df_ingredient['藥品代號'] + ")"
+        selected_product = st.selectbox("選擇要顯示藥價調整的藥品：", product_options, key="ingredient_price_select")
+        if selected_product:
+            selected_code = selected_product.split('(')[-1].replace(')', '').strip()
+            df_price = price_df[price_df['藥品代號'] == selected_code].copy()
+            df_price['起'] = df_price['有效起日'].apply(parse_roc_date)
+            df_price['迄'] = df_price['有效迄日'].apply(parse_roc_date)
+            df_price['支付價'] = pd.to_numeric(df_price['支付價'], errors='coerce')
+            df_price = df_price.sort_values('起')
+            df_price['調整率'] = df_price['支付價'].pct_change().fillna(0) * 100
+            st.subheader(f"{selected_product} 各時間階段藥價調整與調整率")
+            st.dataframe(df_price[['起','迄','支付價','調整率']],
+                use_container_width=True,
+                column_config={
+                    "支付價": st.column_config.NumberColumn("支付價", format="%.2f"),
+                    "調整率": st.column_config.NumberColumn("調整率 (%)", format="%.2f"),
+                }
+            )
+    else:
+        sub_df_product = price_df[price_df['藥品英文名稱'].str.contains(keyword, case=False, na=False)].copy()
+        if not sub_df_product.empty:
+            df_product = show_product_tables(sub_df_product, keyword)
+            ingredient_list = df_product['成分'].dropna().unique().tolist()
+            if ingredient_list:
+                if len(ingredient_list) == 1:
+                    ingredient_name = ingredient_list[0]
+                else:
+                    ingredient_name = st.selectbox("此商品包含多個成分，請選擇要查詢的成分：", ingredient_list, key="select_ing_1")
+                if st.button(f"是否要以成分「{ingredient_name}」進行查詢？", key="atc_search_button"):
+                    sub_df_ingredient = price_df[price_df['成分'].str.contains(ingredient_name, case=False, na=False)].copy()
+                    if not sub_df_ingredient.empty:
+                        df_ingredient_table = show_ingredient_tables(sub_df_ingredient, ingredient_name)
+                        product_options = sub_df_ingredient['藥品英文名稱'] + " (" + sub_df_ingredient['藥品代號'] + ")"
+                        selected_product = st.selectbox("選擇要顯示藥價調整的藥品：", product_options, key="ingredient_price_select2")
+                        if selected_product:
+                            selected_code = selected_product.split('(')[-1].replace(')', '').strip()
+                            df_price = price_df[price_df['藥品代號'] == selected_code].copy()
+                            df_price['起'] = df_price['有效起日'].apply(parse_roc_date)
+                            df_price['迄'] = df_price['有效迄日'].apply(parse_roc_date)
+                            df_price['支付價'] = pd.to_numeric(df_price['支付價'], errors='coerce')
+                            df_price = df_price.sort_values('起')
+                            df_price['調整率'] = df_price['支付價'].pct_change().fillna(0) * 100
+                            st.subheader(f"{selected_product} 各時間階段藥價調整與調整率")
+                            st.dataframe(df_price[['起','迄','支付價','調整率']],
+                                use_container_width=True,
+                                column_config={
+                                    "支付價": st.column_config.NumberColumn("支付價", format="%.2f"),
+                                    "調整率": st.column_config.NumberColumn("調整率 (%)", format="%.2f"),
+                                }
+                            )
+                    else:
+                        st.warning(f"查無成分「{ingredient_name}」的資料")
+            else:
+                st.warning(f"查無 {keyword} 的成分名或商品名資料")
 
 # ------- 藥商查詢功能 -------
 vendor_keyword = st.text_input('請輸入藥商名稱查詢（如 台灣羅氏、台灣默沙東等）*')
@@ -308,3 +408,24 @@ if vendor_keyword:
 
 # ------- 白六圖片 -------
 st.image("S__38543373.jpg", caption="白六-健保資料查詢小幫手", width=100)
+
+# ------- 商品適應症查詢 -------
+with st.expander("商品適應症查詢", expanded=False):
+    product_names = []
+    if 'df_product' in locals() and not df_product.empty:
+        product_names = df_product['藥品英文名稱'].dropna().unique().tolist()
+    elif 'df_ingredient_table' in locals() and not df_ingredient_table.empty:
+        product_names = df_ingredient_table['藥品英文名稱'].dropna().unique().tolist()
+    else:
+        st.info("請先使用上方欄位進行 **商品名** 或 **主成分** 查詢，結果將顯示於此選單。")
+    if product_names:
+        selected_product = st.selectbox("選擇商品以查看適應症：", product_names, key="indication_select")
+        if selected_product:
+            indication = indication_map.get(selected_product.strip(), "查無適應症資料")
+            st.write(f"**{selected_product}** 的適應症：")
+            st.markdown(indication.replace('\n', '<br>'), unsafe_allow_html=True)
+``
+
+# ------- 白六圖片 -------
+st.image("S__38543373.jpg", caption="白六-健保資料查詢小幫手", width=100)
+``
