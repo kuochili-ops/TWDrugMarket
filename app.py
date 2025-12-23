@@ -424,7 +424,7 @@ with st.expander("商品適應症查詢", expanded=False):
             indication = indication_map.get(selected_product.strip(), "查無適應症資料")
             st.write(f"**{selected_product}** 的適應症：")
             st.markdown(indication.replace('\n', '<br>'), unsafe_allow_html=True)
-``
+
 
 # ------- 白六圖片 -------
 st.image("S__38543373.jpg", caption="白六-健保資料查詢小幫手", width=100)
