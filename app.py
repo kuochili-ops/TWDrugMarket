@@ -2,24 +2,9 @@ import pandas as pd
 import streamlit as st
 from datetime import datetime
 import io
-import os
 
 # --- 基礎設定 ---
 st.set_page_config(page_title="健保藥品價量標註系統", layout="wide")
-
-def try_read_csv(file, encodings=['utf-8-sig', 'utf-8', 'big5', 'cp950']):
-    if not os.path.exists(file):
-        return None
-    for enc in encodings:
-        try:
-            # 讀取時不進行過濾，保留原始結構 (包含 Unnamed 欄位)
-            df = pd.read_csv(file, encoding=enc)
-            # 清理標題文字中的換行，但保留欄位位置
-            df.columns = [str(c).replace('\n', ' ').strip() for c in df.columns]
-            return df
-        except:
-            continue
-    return None
 
 def parse_roc_date(s):
     try:
@@ -37,7 +22,7 @@ def parse_roc_date(s):
     except:
         return None
 
-# --- 建立查找字典 (一萬多筆資料秒開的關鍵) ---
+# --- 核心邏輯：建立高效查找字典 ---
 def prepare_price_dict(price_df):
     price_map = {2022: {}, 2023: {}, 2024: {}}
     if price_df is None: return price_map
@@ -64,48 +49,48 @@ def prepare_usage_dict(u22, u23, u24):
     usage_map = {2022: {}, 2023: {}, 2024: {}}
     for yr, df in zip([2022, 2023, 2024], [u22, u23, u24]):
         if df is not None:
-            # 針對用量檔抓取 藥品代碼 欄位
             c_code = '藥品代碼' if '藥品代碼' in df.columns else df.columns[1]
             c_qty = '含包裹支付的醫令量_合計'
             if c_qty in df.columns:
                 usage_map[yr] = dict(zip(df[c_code].astype(str).str.strip(), pd.to_numeric(df[c_qty], errors='coerce').fillna(0.0)))
     return usage_map
 
-# --- 載入區 ---
-@st.cache_data
-def load_all_data():
-    # 優先找 items.csv，找不到就找包含「重新分類」關鍵字的檔案
-    m_file = 'items.csv'
-    if not os.path.exists(m_file):
-        for f in os.listdir('.'):
-            if '重新分類' in f and f.endswith('.csv'):
-                m_file = f
-                break
-    
-    m_df = try_read_csv(m_file)
-    p_df = pd.concat([try_read_csv('Price_ATC1.csv'), try_read_csv('Price_ATC2.csv')], ignore_index=True)
-    u22 = try_read_csv('A21030000I-E41005-001 (2022).csv')
-    u23 = try_read_csv('A21030000I-E41005-002 (2023).csv')
-    u24 = try_read_csv('A21030000I-E41005-003 (2024).csv')
-    return m_df, p_df, u22, u23, u24, m_file
+# --- UI 介面 ---
+st.title("💊 健保藥品分類量價自動標註系統 (上傳版)")
+st.info("請依序上傳分類表、藥價表及各年度用量表，系統將自動完成 13,950 筆資料標註。")
 
-# --- 主介面 ---
-st.title("💊 健保藥品價量自動標註系統")
-
-m_df, p_df, u22, u23, u24, final_master_name = load_all_data()
-
-# 側邊欄狀態檢查
+# --- 側邊欄：檔案上傳區 ---
 with st.sidebar:
-    st.header("📂 檔案檢查")
-    st.write(f"分類表 ({final_master_name}): {'✅' if m_df is not None else '❌'}")
-    st.write(f"藥價表: {'✅' if p_df is not None else '❌'}")
-    st.write(f"用量表: {'✅' if u22 is not None else '❌'}")
+    st.header("📤 上傳資料檔案")
+    # 分類主表
+    uploaded_master = st.file_uploader("1. 上傳項目分類表 (CSV)", type="csv")
+    # 藥價表
+    uploaded_p1 = st.file_uploader("2. 上傳 Price_ATC1 (CSV)", type="csv")
+    uploaded_p2 = st.file_uploader("3. 上傳 Price_ATC2 (CSV)", type="csv")
+    # 用量表
+    uploaded_u22 = st.file_uploader("4. 上傳 2022 用量檔 (CSV)", type="csv")
+    uploaded_u23 = st.file_uploader("5. 上傳 2023 用量檔 (CSV)", type="csv")
+    uploaded_u24 = st.file_uploader("6. 上傳 2024 用量檔 (CSV)", type="csv")
 
-if m_df is not None:
-    st.success(f"已連結分類表，準備標註 {len(m_df)} 筆藥品資料。")
+# --- 讀取與處理 ---
+if uploaded_master and uploaded_p1 and uploaded_p2:
+    # 讀取函數
+    def read_df(file):
+        df = pd.read_csv(file, encoding='utf-8-sig')
+        df.columns = [str(c).replace('\n', ' ').strip() for c in df.columns]
+        return df
+
+    m_df = read_df(uploaded_master)
+    p_df = pd.concat([read_df(uploaded_p1), read_df(uploaded_p2)], ignore_index=True)
     
-    if st.button("🚀 執行全項標註 (附加 2022-2024 價量)", type="primary"):
-        with st.status("正在串接大數據...", expanded=True):
+    u22 = read_df(uploaded_u22) if uploaded_u22 else None
+    u23 = read_df(uploaded_u23) if uploaded_u23 else None
+    u24 = read_df(uploaded_u24) if uploaded_u24 else None
+
+    st.success(f"✅ 分類表已載入：{len(m_df)} 筆資料")
+
+    if st.button("🚀 開始執行全項標註 (附加 2022-2024 價量)", type="primary"):
+        with st.status("運算中，請稍候...", expanded=True):
             p_map = prepare_price_dict(p_df)
             u_map = prepare_usage_dict(u22, u23, u24)
             
@@ -121,22 +106,23 @@ if m_df is not None:
                     res[f'{yr} 當年健保總價'] = round(p * q, 1)
                 stats.append(res)
             
-            # 使用 left join，確保 items.csv 的原始結構(含空欄位)完全保留
+            # 合併數據並保留原始所有欄位 (包含 Unnamed 欄位)
             final_df = pd.merge(m_df, pd.DataFrame(stats), on='藥品代碼', how='left')
             
-        st.subheader("結果預覽")
+        st.subheader("標註結果預覽")
         st.dataframe(final_df.head(100), use_container_width=True)
         
+        # 下載區
         csv_buffer = io.StringIO()
         final_df.to_csv(csv_buffer, index=False, encoding='utf-8-sig')
         st.download_button(
-            label="📥 下載標註完成報表",
+            label="📥 下載標註完成之完整報表",
             data=csv_buffer.getvalue(),
             file_name=f"健保標註結果_{datetime.now().strftime('%m%d')}.csv",
             mime='text/csv'
         )
 else:
-    st.error("找不到分類表檔案。請確認資料夾內有 `items.csv`。")
+    st.warning("👈 請先從側邊欄上傳必要的 CSV 檔案。")
 
 st.divider()
 st.image("S__38543373.jpg", caption="白六-健保資料查詢小幫手", width=100)
