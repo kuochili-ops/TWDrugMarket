@@ -4,113 +4,110 @@ from datetime import datetime
 import io
 import os
 
-# --- 網頁設定 ---
-st.set_page_config(page_title="健保藥品價量標註系統", layout="wide")
+# --- 基礎設定 ---
+st.set_page_config(page_title="健保藥品動態價量系統", layout="wide")
+
+def parse_roc_date(s):
+    """民國日期字串轉為西元 datetime"""
+    try:
+        s = str(int(float(s)))
+    except: return None
+    if len(s) == 7:
+        y, m, d = int(s[:3]) + 1911, int(s[3:5]), int(s[5:7])
+    elif len(s) == 6:
+        y, m, d = int(s[:2]) + 1911, int(s[2:4]), int(s[4:6])
+    else: return None
+    try: return datetime(y, m, d)
+    except: return None
 
 def local_loader(fn):
-    """讀取同目錄下的 CSV，支援多種編碼並清理標題空白"""
-    if not os.path.exists(fn):
-        return None
+    if not os.path.exists(fn): return None
     for enc in ['utf-8-sig', 'utf-8', 'big5', 'cp950']:
         try:
             df = pd.read_csv(fn, encoding=enc)
             df.columns = [str(c).replace('\n', ' ').strip() for c in df.columns]
             return df
-        except:
-            continue
+        except: continue
     return None
 
-def prepare_price_map(p_df):
-    """建立藥價字典：以 2024 年最新的價格為主要參考 (簡化邏輯避免 KeyError)"""
+def prepare_dynamic_price_map(p_df):
+    """計算每一年度生效天數最長的單價"""
     price_map = {2022: {}, 2023: {}, 2024: {}}
-    if p_df is None:
-        return price_map
+    if p_df is None: return price_map
     
-    # 確保必要欄位存在
-    if '藥品代號' not in p_df.columns or '支付價' not in p_df.columns:
-        st.error("藥價表格式不正確，缺少 '藥品代號' 或 '支付價'")
-        return price_map
-
-    # 簡單化處理：將支付價轉為數字
+    # 預處理藥價表
+    p_df['起'] = p_df['有效起日'].apply(parse_roc_date)
+    p_df['迄'] = p_df['有效迄日'].apply(parse_roc_date)
     p_df['支付價'] = pd.to_numeric(p_df['支付價'], errors='coerce').fillna(0.0)
     
-    # 根據有效起日排序，取最新的一筆作為代表價 (預設給 2022-2024)
-    # 若需精確到每一天的價格變動，運算量會太大，此處取該藥品在表中的最後價格
-    latest_prices = p_df.sort_values('有效起日').groupby('藥品代號')['支付價'].last().to_dict()
-    
+    # 過濾掉日期解析失敗的資料
+    p_df = p_df.dropna(subset=['起', '迄'])
+
     for yr in [2022, 2023, 2024]:
-        price_map[yr] = latest_prices
+        s_dt, e_dt = datetime(yr, 1, 1), datetime(yr, 12, 31)
+        # 篩選該年份有重疊的價格區間
+        mask = (p_df['起'] <= e_dt) & (p_df['迄'] >= s_dt)
+        year_p = p_df[mask].copy()
+        
+        if not year_p.empty:
+            # 計算在該年度內的生效天數
+            year_p['區間起'] = year_p['起'].apply(lambda x: max(x, s_dt))
+            year_p['區間迄'] = year_p['迄'].apply(lambda x: min(x, e_dt))
+            year_p['生效天數'] = (year_p['區間迄'] - year_p['區間起']).dt.days + 1
+            
+            # 針對每個藥品，取生效天數最長的那筆價格
+            idx = year_p.groupby('藥品代號')['生效天數'].idxmax()
+            price_map[yr] = dict(zip(year_p.loc[idx, '藥品代號'], year_p.loc[idx, '支付價']))
+            
     return price_map
 
 def prepare_usage_map(u22, u23, u24):
-    """建立用量字典"""
     u_map = {2022: {}, 2023: {}, 2024: {}}
     for yr, df in zip([2022, 2023, 2024], [u22, u23, u24]):
         if df is not None:
-            # 用量檔通常第二欄是代碼
             c_code = '藥品代碼' if '藥品代碼' in df.columns else df.columns[1]
             c_qty = '含包裹支付的醫令量_合計'
             if c_qty in df.columns:
                 u_map[yr] = dict(zip(df[c_code].astype(str).str.strip(), pd.to_numeric(df[c_qty], errors='coerce').fillna(0.0)))
     return u_map
 
-# --- 主程式介面 ---
-st.title("💊 健保藥品分類量價自動標註系統")
+# --- UI ---
+st.title("💊 健保藥品動態價量標註系統")
 
-# 1. 檢查目錄下的背景檔案
 with st.sidebar:
     st.header("📂 背景數據檢查")
-    p1 = local_loader('Price_ATC1.csv')
-    p2 = local_loader('Price_ATC2.csv')
-    p_df = pd.concat([p1, p2], ignore_index=True) if p1 is not None else None
-    u22 = local_loader('A21030000I-E41005-001 (2022).csv')
-    u23 = local_loader('A21030000I-E41005-002 (2023).csv')
-    u24 = local_loader('A21030000I-E41005-003 (2024).csv')
-    
-    st.write(f"藥價數據: {'✅' if p_df is not None else '❌'}")
-    st.write(f"用量數據 (22-24): {'✅' if u22 is not None and u24 is not None else '❌'}")
+    p_local = pd.concat([local_loader('Price_ATC1.csv'), local_loader('Price_ATC2.csv')], ignore_index=True)
+    u22, u23, u24 = local_loader('A21030000I-E41005-001 (2022).csv'), local_loader('A21030000I-E41005-002 (2023).csv'), local_loader('A21030000I-E41005-003 (2024).csv')
+    st.write(f"藥價數據: {'✅' if p_local is not None else '❌'}")
+    st.write(f"用量數據: {'✅' if u24 is not None else '❌'}")
 
-# 2. 上傳 items.csv
-up_file = st.file_uploader("📤 請上傳您的分類表 (例如: items.csv)", type="csv")
+up_file = st.file_uploader("📤 上傳原始分類表 (items.csv)", type="csv")
 
 if up_file:
-    # 讀取上傳檔案，不清理欄位名稱以保留原始結構 (Unnamed 等)
     m_df = pd.read_csv(up_file, encoding='utf-8-sig')
-    st.success(f"已載入分類表，共 {len(m_df)} 筆藥品。")
+    st.success(f"已讀取 {len(m_df)} 筆項目")
 
-    if st.button("🚀 開始標註 2022-2024 價量數據", type="primary"):
-        with st.status("正在匹配數據...", expanded=True):
-            # 取得對應字典
-            p_map = prepare_price_map(p_df)
+    if st.button("🚀 執行精準年度標註", type="primary"):
+        with st.status("正在計算每年動態單價...", expanded=True):
+            p_map = prepare_dynamic_price_map(p_local)
             u_map = prepare_usage_map(u22, u23, u24)
             
-            # 建立計算結果清單
             results = []
             for _, row in m_df.iterrows():
                 code = str(row['藥品代碼']).strip()
                 res = {'藥品代碼': code}
                 for yr in [2022, 2023, 2024]:
-                    price = p_map[yr].get(code, 0.0)
-                    qty = u_map[yr].get(code, 0.0)
-                    res[f'{yr} 銷售量'] = qty
-                    res[f'{yr} 當年健保單價'] = price
-                    res[f'{yr} 當年健保總價'] = round(price * qty, 1)
+                    p = p_map[yr].get(code, 0.0)
+                    q = u_map[yr].get(code, 0.0)
+                    res[f'{yr} 銷售量'] = q
+                    res[f'{yr} 當年健保單價'] = p
+                    res[f'{yr} 當年健保總價'] = round(p * q, 1)
                 results.append(res)
             
-            # 使用 left join 將數據貼回原始表格右側
-            stats_df = pd.DataFrame(results)
-            final_df = pd.merge(m_df, stats_df, on='藥品代碼', how='left')
+            final_df = pd.merge(m_df, pd.DataFrame(results), on='藥品代碼', how='left')
             
-        st.subheader("標註結果預覽")
+        st.subheader("結果預覽 (請檢查不同年份單價是否已有變化)")
         st.dataframe(final_df.head(100))
         
-        # 下載區
         csv_out = final_df.to_csv(index=False, encoding='utf-8-sig')
-        st.download_button(
-            label="📥 下載完成標註之報表",
-            data=csv_out,
-            file_name=f"健保標註結果_{datetime.now().strftime('%m%d')}.csv",
-            mime='text/csv'
-        )
-else:
-    st.info("💡 操作說明：請在上方上傳您的 `items.csv` 分類表，系統會自動結合目錄下的藥價與用量檔。")
+        st.download_button("📥 下載動態標註報表", csv_out, file_name="健保年度價量分析.csv", mime='text/csv')
