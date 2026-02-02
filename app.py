@@ -2,12 +2,15 @@ import pandas as pd
 import streamlit as st
 from datetime import datetime
 import io
+import os
 
 # --- 基礎設定 ---
 st.set_page_config(page_title="健保藥品價量分析系統", layout="wide")
 
 # --- 數據讀取工具函式 ---
 def try_read_csv(file, encodings=['utf-8-sig', 'utf-8', 'big5', 'cp950']):
+    if not os.path.exists(file):
+        return None
     for enc in encodings:
         try:
             df = pd.read_csv(file, encoding=enc)
@@ -33,7 +36,7 @@ def parse_roc_date(s):
     except:
         return None
 
-# --- 預計算優化邏輯 (讓一萬多筆資料能跑得動) ---
+# --- 預計算優化邏輯 ---
 def prepare_price_dict(price_df, years=[2022, 2023, 2024]):
     price_map = {year: {} for year in years}
     pdf = price_df.copy()
@@ -64,38 +67,55 @@ def prepare_usage_dict(u22, u23, u24):
                 usage_map[yr] = dict(zip(df[col_code].astype(str).str.strip(), pd.to_numeric(df[col_qty], errors='coerce').fillna(0.0)))
     return usage_map
 
+# --- 檔案自動偵測功能 ---
+def find_file_by_keyword(keyword):
+    for f in os.listdir('.'):
+        if keyword in f and f.endswith('.csv'):
+            return f
+    return None
+
 # --- 載入資料 ---
 @st.cache_data
-def load_and_merge_master():
-    # 讀取分類主表
-    m_df = try_read_csv('現行健保收載藥品重新分類項目表_1141229_1140673262.xlsx - 現行健保收載藥品重新分類項目表.csv')
-    # 讀取藥價表
+def load_all_files():
+    # 自動尋找分類表檔名
+    master_filename = find_file_by_keyword("重新分類項目表")
+    if not master_filename:
+        # 如果找不到，手動指定您上傳的檔名
+        master_filename = "現行健保收載藥品重新分類項目表_1141229_1140673262.xlsx - 現行健保收載藥品重新分類項目表.csv"
+    
+    m_df = try_read_csv(master_filename)
     p1 = try_read_csv('Price_ATC1.csv')
     p2 = try_read_csv('Price_ATC2.csv')
     p_df = pd.concat([p1, p2], ignore_index=True) if (p1 is not None and p2 is not None) else None
-    # 讀取用量表
     u22 = try_read_csv('A21030000I-E41005-001 (2022).csv')
     u23 = try_read_csv('A21030000I-E41005-002 (2023).csv')
     u24 = try_read_csv('A21030000I-E41005-003 (2024).csv')
-    return m_df, p_df, u22, u23, u24
+    
+    return m_df, p_df, u22, u23, u24, master_filename
 
 # --- 主程式介面 ---
 st.title("💊 健保藥品分類量價全項串接系統")
 
-m_df, p_df, u22, u23, u24 = load_and_merge_master()
+m_df, p_df, u22, u23, u24, used_master_name = load_all_files()
+
+# 顯示偵測到的檔案資訊
+with st.expander("📂 檔案檢查狀態"):
+    st.write(f"分類表檔案: `{used_master_name}` {'✅' if m_df is not None else '❌'}")
+    st.write(f"藥價表 (ATC1/2): {'✅' if p_df is not None else '❌'}")
+    st.write(f"2022 用量表: {'✅' if u22 is not None else '❌'}")
+    st.write(f"2023 用量表: {'✅' if u23 is not None else '❌'}")
+    st.write(f"2024 用量表: {'✅' if u24 is not None else '❌'}")
 
 if m_df is not None and p_df is not None:
-    st.success(f"✅ 已成功載入分類表 ({len(m_df)} 筆資料)")
+    st.success(f"✅ 成功載入分類表：{used_master_name} (共 {len(m_df)} 筆)")
     
-    # 關鍵的執行按鈕
     if st.button("🚀 開始執行全項目價量串接運算", type="primary"):
-        with st.status("正在進行大量資料運算...", expanded=True) as status:
+        with st.status("正在運算 13,000+ 項藥品數據...", expanded=True) as status:
             st.write("步驟 1: 建立快速對照字典...")
             p_map = prepare_price_dict(p_df)
             u_map = prepare_usage_dict(u22, u23, u24)
             
-            st.write("步驟 2: 計算每項藥品之年總價...")
-            # 建立計算結果列表
+            st.write("步驟 2: 執行串接計算...")
             results = []
             for _, row in m_df.iterrows():
                 code = str(row['藥品代碼']).strip()
@@ -108,27 +128,26 @@ if m_df is not None and p_df is not None:
                     item_res[f'{yr}總價'] = round(price * qty, 1)
                 results.append(item_res)
             
-            st.write("步驟 3: 合併報表...")
+            st.write("步驟 3: 合併結果...")
             stats_df = pd.DataFrame(results)
-            # 合併原始分類表與計算結果
             final_df = pd.merge(m_df, stats_df, on='藥品代碼', how='left')
             
             status.update(label="✅ 運算完成！", state="complete", expanded=False)
         
-        st.subheader("分析結果預覽")
+        st.subheader("分析結果預覽 (前50筆)")
         st.dataframe(final_df.head(50), use_container_width=True)
         
         # 下載按鈕
         csv_buffer = io.StringIO()
         final_df.to_csv(csv_buffer, index=False, encoding='utf-8-sig')
         st.download_button(
-            label="📥 下載完整分析報表 (Excel CSV)",
+            label="📥 下載完整分析報表 (CSV)",
             data=csv_buffer.getvalue(),
-            file_name=f"全項價量分析_{datetime.now().strftime('%Y%m%d')}.csv",
+            file_name=f"健保藥品分類價量表_{datetime.now().strftime('%Y%m%d')}.csv",
             mime='text/csv'
         )
 else:
-    st.error("❌ 檔案讀取失敗，請確認 'Price_ATC1.csv' 與 '分類項目表.csv' 等檔案在同一目錄下。")
+    st.error(f"❌ 無法讀取核心檔案。請確保包含『重新分類項目表』關鍵字的 CSV 檔案與藥價檔都在目錄中。")
 
 st.divider()
 st.image("S__38543373.jpg", caption="白六-健保資料查詢小幫手", width=100)
