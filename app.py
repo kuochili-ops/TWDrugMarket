@@ -5,15 +5,16 @@ import io
 import os
 
 # --- 基礎設定 ---
-st.set_page_config(page_title="健保藥品分類量價標註系統", layout="wide")
+st.set_page_config(page_title="健保藥品價量標註系統", layout="wide")
 
 def try_read_csv(file, encodings=['utf-8-sig', 'utf-8', 'big5', 'cp950']):
     if not os.path.exists(file):
         return None
     for enc in encodings:
         try:
-            # 讀取時不變動原始內容，僅清理標題空格
+            # 讀取時不進行過濾，保留原始結構 (包含 Unnamed 欄位)
             df = pd.read_csv(file, encoding=enc)
+            # 清理標題文字中的換行，但保留欄位位置
             df.columns = [str(c).replace('\n', ' ').strip() for c in df.columns]
             return df
         except:
@@ -36,7 +37,7 @@ def parse_roc_date(s):
     except:
         return None
 
-# --- 核心邏輯：建立高效查找字典 ---
+# --- 建立查找字典 (一萬多筆資料秒開的關鍵) ---
 def prepare_price_dict(price_df):
     price_map = {2022: {}, 2023: {}, 2024: {}}
     if price_df is None: return price_map
@@ -54,7 +55,6 @@ def prepare_price_dict(price_df):
             temp_df['區間起'] = temp_df['起'].apply(lambda d: max(d, start_dt))
             temp_df['區間迄'] = temp_df['迄'].apply(lambda d: min(d, end_dt))
             temp_df['天數'] = (temp_df['區間迄'] - temp_df['區間起']).dt.days + 1
-            # 抓取該年度生效天數最長的一筆作為年度單價
             idx = temp_df.groupby('藥品代號')['天數'].idxmax()
             final_prices = temp_df.loc[idx, ['藥品代號', '支付價']]
             price_map[year] = dict(zip(final_prices['藥品代號'], final_prices['支付價']))
@@ -64,7 +64,7 @@ def prepare_usage_dict(u22, u23, u24):
     usage_map = {2022: {}, 2023: {}, 2024: {}}
     for yr, df in zip([2022, 2023, 2024], [u22, u23, u24]):
         if df is not None:
-            # 自動偵測藥品代碼欄位 (通常是第二欄)
+            # 針對用量檔抓取 藥品代碼 欄位
             c_code = '藥品代碼' if '藥品代碼' in df.columns else df.columns[1]
             c_qty = '含包裹支付的醫令量_合計'
             if c_qty in df.columns:
@@ -74,72 +74,69 @@ def prepare_usage_dict(u22, u23, u24):
 # --- 載入區 ---
 @st.cache_data
 def load_all_data():
-    # 改名後的分類表
-    m_df = try_read_csv('items.csv')
-    # 藥價表 (ATC1 & ATC2 合併)
-    p1 = try_read_csv('Price_ATC1.csv')
-    p2 = try_read_csv('Price_ATC2.csv')
-    p_df = pd.concat([p1, p2], ignore_index=True) if (p1 is not None and p2 is not None) else None
-    # 2022-2024 用量表
+    # 優先找 items.csv，找不到就找包含「重新分類」關鍵字的檔案
+    m_file = 'items.csv'
+    if not os.path.exists(m_file):
+        for f in os.listdir('.'):
+            if '重新分類' in f and f.endswith('.csv'):
+                m_file = f
+                break
+    
+    m_df = try_read_csv(m_file)
+    p_df = pd.concat([try_read_csv('Price_ATC1.csv'), try_read_csv('Price_ATC2.csv')], ignore_index=True)
     u22 = try_read_csv('A21030000I-E41005-001 (2022).csv')
     u23 = try_read_csv('A21030000I-E41005-002 (2023).csv')
     u24 = try_read_csv('A21030000I-E41005-003 (2024).csv')
-    return m_df, p_df, u22, u23, u24
+    return m_df, p_df, u22, u23, u24, m_file
 
-# --- UI 介面 ---
+# --- 主介面 ---
 st.title("💊 健保藥品價量自動標註系統")
 
-m_df, p_df, u22, u23, u24 = load_all_data()
+m_df, p_df, u22, u23, u24, final_master_name = load_all_data()
 
-# 側邊欄狀態監測
+# 側邊欄狀態檢查
 with st.sidebar:
-    st.header("📂 檔案準備狀態")
-    st.write(f"items.csv: {'✅' if m_df is not None else '❌'}")
+    st.header("📂 檔案檢查")
+    st.write(f"分類表 ({final_master_name}): {'✅' if m_df is not None else '❌'}")
     st.write(f"藥價表: {'✅' if p_df is not None else '❌'}")
-    st.write(f"用量表 (22-24): {'✅' if u22 is not None and u24 is not None else '❌'}")
-    if m_df is None:
-        st.warning("請將分類表改名為 `items.csv` 並放置於目錄下。")
+    st.write(f"用量表: {'✅' if u22 is not None else '❌'}")
 
-if m_df is not None and p_df is not None:
-    st.success(f"成功識別 `items.csv`，共 {len(m_df)} 筆項目待標註。")
+if m_df is not None:
+    st.success(f"已連結分類表，準備標註 {len(m_df)} 筆藥品資料。")
     
-    if st.button("🚀 開始執行全項標註 (附加 2022-2024 價量資訊)", type="primary"):
-        with st.status("正在進行高速價量對比...", expanded=True) as status:
+    if st.button("🚀 執行全項標註 (附加 2022-2024 價量)", type="primary"):
+        with st.status("正在串接大數據...", expanded=True):
             p_map = prepare_price_dict(p_df)
             u_map = prepare_usage_dict(u22, u23, u24)
             
-            # 建立標註資料列表
-            results = []
+            stats = []
             for _, row in m_df.iterrows():
                 code = str(row['藥品代碼']).strip()
-                item_stats = {'藥品代碼': code}
+                res = {'藥品代碼': code}
                 for yr in [2022, 2023, 2024]:
-                    pr = p_map[yr].get(code, 0.0)
-                    qt = u_map[yr].get(code, 0.0)
-                    item_stats[f'{yr} 銷售量'] = qt
-                    item_stats[f'{yr} 當年健保單價'] = pr
-                    item_stats[f'{yr} 當年健保總價'] = round(pr * qt, 1)
-                results.append(item_stats)
+                    p = p_map[yr].get(code, 0.0)
+                    q = u_map[yr].get(code, 0.0)
+                    res[f'{yr} 銷售量'] = q
+                    res[f'{yr} 當年健保單價'] = p
+                    res[f'{yr} 當年健保總價'] = round(p * q, 1)
+                stats.append(res)
             
-            # 以 left join 合併，保留 items.csv 的原始所有欄位結構
-            final_df = pd.merge(m_df, pd.DataFrame(results), on='藥品代碼', how='left')
+            # 使用 left join，確保 items.csv 的原始結構(含空欄位)完全保留
+            final_df = pd.merge(m_df, pd.DataFrame(stats), on='藥品代碼', how='left')
             
-            status.update(label="✅ 標註運算完成！", state="complete", expanded=False)
-            
-        st.subheader("結果預覽 (前 100 筆)")
+        st.subheader("結果預覽")
         st.dataframe(final_df.head(100), use_container_width=True)
         
-        # 匯出 CSV 檔案
         csv_buffer = io.StringIO()
         final_df.to_csv(csv_buffer, index=False, encoding='utf-8-sig')
         st.download_button(
-            label="📥 下載標註完成之 CSV 報表",
+            label="📥 下載標註完成報表",
             data=csv_buffer.getvalue(),
-            file_name=f"健保重新分類標註_{datetime.now().strftime('%m%d')}.csv",
+            file_name=f"健保標註結果_{datetime.now().strftime('%m%d')}.csv",
             mime='text/csv'
         )
 else:
-    st.info("💡 啟動說明：請確保您的分類表檔名為 `items.csv`，且目錄中包含 Price_ATC1/2.csv 與年度用量檔。")
+    st.error("找不到分類表檔案。請確認資料夾內有 `items.csv`。")
 
 st.divider()
 st.image("S__38543373.jpg", caption="白六-健保資料查詢小幫手", width=100)
