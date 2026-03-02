@@ -380,7 +380,7 @@ if vendor_keyword:
 
 
 # 將原本的 100 改為 50
-st.image("S__38543373.jpg", caption="白六-健保資料查詢小幫手", width=50)
+st.image("S__38543373.jpg", caption="白六-健保資料查詢小幫手", width=70)
 
 # ===== 延伸分析函式 (ATC 占比 - 使用修正後的 ATC4/ATC5 邏輯) =====
 def show_top_atc5_and_products(atc_code_4):
