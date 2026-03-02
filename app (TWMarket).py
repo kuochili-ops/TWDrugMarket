@@ -317,7 +317,7 @@ with st.expander("商品適應症查詢", expanded=False):
             st.markdown(indication.replace('\n', '<br>'), unsafe_allow_html=True)
 
 # ------- 藥商查詢 (保持不變) -------
-vendor_keyword = st.text_input('請輸入藥商名稱查詢（如 台灣羅氏、台灣默沙東等）*Serena 要的')
+vendor_keyword = st.text_input('請輸入藥商名稱查詢（如 台灣羅氏、台灣默沙東等）')
 
 if vendor_keyword:
     sub_df_vendor = price_df[price_df['藥商'].str.contains(vendor_keyword, case=False, na=False)]
